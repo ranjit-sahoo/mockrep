@@ -339,3 +339,26 @@ def join_waitlist(email: str, source: str = "site") -> bool:
         if not had:
             c.run("INSERT INTO waitlist (email, created, source) VALUES (?, ?, ?) ON CONFLICT (email) DO NOTHING", (e, time.time(), source[:20]))
     return not had
+
+
+def recovery_create(user_id: str) -> str:
+    code = secrets.token_urlsafe(32)
+    with Conn() as c:
+        c.run("CREATE TABLE IF NOT EXISTS account_recovery (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL)")
+        c.run("INSERT INTO account_recovery(user_id,code_hash) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET code_hash=EXCLUDED.code_hash", (user_id, _hash_token(code)))
+    return code
+
+
+def recovery_reset(email: str, code: str, password: str):
+    if not 8 <= len(password) <= 200:
+        raise ValueError("Password must be 8 to 200 characters.")
+    with Conn() as c:
+        c.run("CREATE TABLE IF NOT EXISTS account_recovery (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL)")
+        rows = c.run("SELECT u.id,r.code_hash FROM users u JOIN account_recovery r ON r.user_id=u.id WHERE u.email=?", ((email or "").strip().lower(),))
+        if not rows or not hmac.compare_digest(rows[0]["code_hash"], _hash_token(code)):
+            raise PermissionError("Email or recovery code is incorrect.")
+        uid = rows[0]["id"]
+        c.run("UPDATE users SET pw_hash=? WHERE id=?", (hash_password(password), uid))
+        c.run("DELETE FROM auth_sessions WHERE user_id=?", (uid,))
+        c.run("DELETE FROM account_recovery WHERE user_id=?", (uid,))
+    return {"ok": True, "note": "Password changed. Log in and create a new recovery code."}

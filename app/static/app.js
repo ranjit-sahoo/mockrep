@@ -193,7 +193,8 @@ $('acLogin').onclick=()=>busy($('acLogin'),'...',()=>authGo('/api/auth/login'));
 $('acReg').onclick=()=>{if(!$('acAgree').checked){$('acErr').textContent='Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.';$('acAgree').focus();return}busy($('acReg'),'...',()=>authGo('/api/auth/register',true))};
 ['acEmail','acPw'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('acLogin').click()}}));
 $('wlEmail').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('wlBtn').click()}});
-$('acctOut').onclick=async()=>{await post('/api/auth/logout',{});await refreshMe();document.querySelector('[data-t=prep]').click()};
+function clearPrivateDraft(){clearTimeout(rbT);RB=RB_EMPTY();try{localStorage.removeItem(RB_KEY)}catch(e){}rbFormRender();clearTimeout(rbT);try{localStorage.removeItem(RB_KEY)}catch(e){}$('resume').value='';$('jd').value='';try{sessionStorage.removeItem('mr_interview');sessionStorage.removeItem('mr_negotiation')}catch(e){}sid=null;nsid=null;ansLog=[];}
+$('acctOut').onclick=async()=>{clearPrivateDraft();await post('/api/auth/logout',{});await refreshMe();document.querySelector('[data-t=prep]').click()};
 $('acctHist').onclick=()=>document.querySelector('[data-t=history]').click();
 async function saveItem(kind,title,data,btn){
   if(!me){alert('Log in or create a free account (top of the page) to save.');return}
@@ -220,17 +221,16 @@ $('histList').onclick=async e=>{const d=e.target.dataset||{};
     else if(it.kind==='code_review'){$('histView').innerHTML=`<h3>${esc(it.title)}</h3><div class="score">${esc(x.result.score)}/10</div><p>${esc(x.result.summary)}</p>`+(x.result.bugs.length?ul(x.result.bugs):'')+`<pre style="white-space:pre-wrap;background:var(--card2);padding:10px;border-radius:10px">${esc(x.code)}</pre>`}
     else $('histView').innerHTML=`<pre style="white-space:pre-wrap">${esc(JSON.stringify(x,null,2))}</pre>`}catch(er){alert(er.message)}}};
 $('histDel').onclick=async()=>{if(!confirm('Delete your account and everything saved? This cannot be undone.'))return;
-  try{await api('/api/auth/account',{method:'DELETE'});await refreshMe();document.querySelector('[data-t=prep]').click()}catch(e){alert(e.message)}};
+  try{await api('/api/auth/account',{method:'DELETE'});clearPrivateDraft();await refreshMe();document.querySelector('[data-t=prep]').click()}catch(e){alert(e.message)}};
 refreshMe();
 
 // ---- country
 const CK='ip_country';let countryLocked=false;
 function setCountry(c,touched){country=c;if(touched)countryTouched=true;document.querySelectorAll('#countries button').forEach(b=>{const on=b.dataset.c===c;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false')})}
-function lockCountry(c,why){countryLocked=true;$('countries').classList.add('locked');countryTouched=true;setCountry(c,true);document.querySelectorAll('#countries button').forEach(b=>{b.disabled=b.dataset.c!==c;b.setAttribute('aria-disabled',b.disabled?'true':'false')});
-  $('detNote').textContent=`- ${c} (${why}, locked for pricing and fairness)`}
+function lockCountry(c,why){countryLocked=false;$('countries').classList.remove('locked');countryTouched=true;setCountry(c,true);document.querySelectorAll('#countries button').forEach(b=>{b.disabled=false;b.setAttribute('aria-disabled',b.disabled?'true':'false')});
+  $('detNote').textContent=`- ${c} (${why}, suggested from network; choose your target market)`}
 $('countries').onclick=e=>{const b=e.target.closest&&e.target.closest('button[data-c]');if(!b||countryLocked)return;
-  if(!confirm('Choose '+b.dataset.c+'? You cannot change this afterwards on this device.'))return;
-  try{localStorage.setItem(CK,b.dataset.c)}catch(_){}lockCountry(b.dataset.c,'you chose it')};
+  try{localStorage.setItem(CK,b.dataset.c)}catch(_){}lockCountry(b.dataset.c,'saved preference')};
 async function detect(){
   const r=$('resume').value.trim(),j=$('jd').value.trim();const key=r.slice(0,200)+'|'+j.slice(0,100)+r.length;
   if(r.length<30||countryTouched||countryLocked||key===detKey)return;detKey=key;
@@ -242,13 +242,12 @@ async function detect(){
 $('resume').addEventListener('blur',detect);$('jd').addEventListener('blur',detect);
 let detTimer=null;const detSoon=()=>{clearTimeout(detTimer);detTimer=setTimeout(()=>{if($('resume').value.trim().length>=80)detect()},1200)};
 $('resume').addEventListener('input',detSoon);$('jd').addEventListener('input',detSoon);
-// The server decides the country from the network address (CDN check). When that signal exists the choice is locked.
-// Only when there is no reliable signal can the visitor pick once; that pick is then locked on this device.
+// Network location is only a suggestion; target market stays editable.
 fetch('/api/geo').then(r=>r.json()).catch(()=>null).then(g=>{
   if(g&&g.locked&&g.country){lockCountry(g.country,'detected from your network');return}
   let sv=null;try{sv=localStorage.getItem(CK)}catch(e){}
   if(sv==='US'||sv==='India'||sv==='Other'){lockCountry(sv,'you chose it');return}
-  $('detNote').textContent='- we could not detect it, please choose once'});
+  $('detNote').textContent='- we could not detect it, please choose your target market'});
 function cc(){if(!country){$('detNote').textContent='- please choose your country';const b=document.querySelector('#countries button');if(b)b.focus();throw new Error('Please choose your country (US, India or Other) at the top of the page first.')}return country}
 async function ensureCountry(){await detect();if(!country){$('detNote').textContent='- please choose your country';const b=document.querySelector('#countries button');if(b)b.focus();throw new Error('Please choose your country (US, India or Other) above first.')}return country}
 
@@ -334,7 +333,7 @@ $('btnSpeak').onclick=()=>speak($('qtext').textContent);
 // ---- interview
 $('btnStart').onclick=()=>busy($('btnStart'),'Preparing questions...',async()=>{profErr('');
   try{const d=await post('/api/session',{resume:$('resume').value.trim(),role:role(),jd:$('jd').value,country:await ensureCountry(),level:$('ivLevel').value,followups:$('ivFu').checked,count:+$('ivMode').value});
-    sid=d.session_id;ansLog=[];stopTimer();endRec(true);fuOn=$('ivFu').checked;$('fb').innerHTML='';$('report').classList.add('hide');$('interview').classList.remove('hide');showQ(d.question,d.number,d.total)
+    sid=d.session_id;try{sessionStorage.setItem('mr_interview',sid)}catch(e){}ansLog=[];stopTimer();endRec(true);fuOn=$('ivFu').checked;$('fb').innerHTML='';$('report').classList.add('hide');$('interview').classList.remove('hide');showQ(d.question,d.number,d.total)
   }catch(e){profErr(e.message)}});
 let ansLog=[],speakMs=0,speakStart=0,mrec=null,mchunks=[],mstream=null,tmr=null;
 function stopTimer(){if(tmr){clearInterval(tmr);tmr=null}$('ivTimer').classList.add('hide')}
@@ -436,19 +435,19 @@ const bfCountry=()=>{$('bfCountry').textContent=`Adapted to: ${country||'not cho
 document.querySelector('[data-t=brief]').addEventListener('click',()=>{bfCountry();if(!$('bfRole').value)$('bfRole').value=$('role').value});
 fetch('/api/companies').then(r=>r.json()).then(j=>{$('bfList').innerHTML=j.companies.map(c=>`<option value="${esc(c)}">`).join('')}).catch(()=>{});
 const sec=(t,h)=>h?`<div class="cand"><b>${t}</b>${h}</div>`:'';
-const briefHtml=d=>`<h2>${esc(d.company)} <span class="pill">${esc(d.country)} view</span></h2><p>${esc(d.summary)}</p>${d.market_note?`<p class="note">${esc(d.market_note)}</p>`:''}
+const briefHtml=d=>`<h2>${esc(d.company)} <span class="pill">${esc(d.country)} view</span></h2><p>${esc(d.summary)}</p><p class="note">General model brief, not live news. Prepared ${esc(d.prepared_at||'today')}.</p>${d.market_note?`<p class="note">${esc(d.market_note)}</p>`:''}
   ${sec('Interview process',d.process.length?'<ol>'+d.process.map(x=>`<li>${esc(x)}</li>`).join('')+'</ol>':'')}${sec('What they ask',ul(d.question_style))}
   ${sec('Culture',ul(d.culture))}${sec('Recent focus areas',ul(d.recent_focus))}
   ${d.why_join?`<div class="w g"><b>Your "why this company" angle</b><br>${esc(d.why_join)}</div>`:''}${sec('Smart questions to ask them',ul(d.ask_them))}${sec('Avoid these mistakes',ul(d.watch_out))}
   <p class="note">${esc(d.caution)} <a href="${esc(/^https:\/\//.test(d.news_url||"")?d.news_url:"#")}" target="_blank" rel="noopener">See the latest news</a></p><p><button class="ghost" data-save="brief">Save to my history</button></p>`;
-$('btnBrief').onclick=()=>busy($('btnBrief'),'Researching...',async()=>{$('briefErr').textContent='';
+$('btnBrief').onclick=()=>busy($('btnBrief'),'Preparing general brief...',async()=>{$('briefErr').textContent='';
   try{const d=await post('/api/company-brief',{company:$('bfCo').value,role:$('bfRole').value||$('role').value,country:cc()});lastBrief=d;$('briefOut').innerHTML=briefHtml(d)}catch(e){$('briefErr').textContent=e.message}});
 
 // ---- negotiation
 function bubble(who,t){const d=document.createElement('div');d.className='bubble '+(who==='recruiter'?'r':'c');d.innerHTML=`<small class="note">${who==='recruiter'?'Recruiter':'You'}</small><br>${esc(t)}`;$('chat').appendChild(d);d.scrollIntoView({behavior:'smooth',block:'nearest'})}
 $('btnNego').onclick=()=>busy($('btnNego'),'Setting up...',async()=>{profErr('');$('negoErr').textContent='';
   try{const d=await post('/api/negotiation',{resume:$('resume').value.trim(),role:role(),country:await ensureCountry(),current:$('curpay').value});
-    nsid=d.session_id;$('chat').innerHTML='';$('negoRep').innerHTML='';$('negoBox').classList.remove('hide');const s=d.scenario;
+    nsid=d.session_id;try{sessionStorage.setItem('mr_negotiation',nsid)}catch(e){}$('chat').innerHTML='';$('negoRep').innerHTML='';$('negoBox').classList.remove('hide');const s=d.scenario;
     $('negoInfo').textContent=`Estimated market range: ${s.market_range}. Goal: ${s.goal} (figures are AI estimates, verify with real salary data.)`;bubble('recruiter',s.opening_message);$('btnSay').disabled=false
   }catch(e){profErr(e.message)}});
 $('btnSay').onclick=async()=>{const m=$('negoMsg').value.trim();if(!m)return;$('negoErr').textContent='';$('btnSay').disabled=true;$('negoBusy').classList.remove('hide');
@@ -530,7 +529,7 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
     document.body.dataset.view=v;$('viewTitle').textContent=v==='home'?'':TITLES[v];
     drawer.querySelectorAll('button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
     if(v!=='home'&&v!=='account'){const tb=document.querySelector('#tabs [data-t='+v+']');if(tb&&!tb.classList.contains('on'))tb.click()}
-    if(v==='account')$('acctForm').classList.remove('hide');
+    if(v==='account'&&!me)$('acctForm').classList.remove('hide');
     if(push!==false){try{history.pushState({v},'','#'+v)}catch(e){}}
     window.scrollTo({top:0,behavior:'instant'in window?'instant':'auto'})}
   window.__mr={TITLES,setView};window.dispatchEvent(new Event('mr:ready'));
@@ -546,11 +545,11 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
   $('acctOpen').onclick=()=>$('acctForm').classList.toggle('hide');
   const syncHist=()=>$('dHist').classList.toggle('hide',$('tabHist').classList.contains('hide'));
   new MutationObserver(syncHist).observe($('tabHist'),{attributes:true,attributeFilter:['class']});syncHist();
-  const syncAcct=()=>{const on=!$('acctOut').classList.contains('hide');$('dOut').classList.toggle('hide',!on);$('dDel').classList.toggle('hide',!on);$('dLogin').classList.toggle('hide',on)};
+  const syncAcct=()=>{const on=!$('acctOut').classList.contains('hide');$('dOut').classList.toggle('hide',!on);$('dDel').classList.toggle('hide',!on);$('dLogin').classList.remove('hide');$('dLogin').lastChild.textContent=on?'Account & security':'Log in / Sign up'};
   new MutationObserver(syncAcct).observe($('acctOut'),{attributes:true,attributeFilter:['class']});syncAcct();
-  $('dOut').onclick=async()=>{openMenu(false);try{await post('/api/auth/logout',{})}catch(e){}await refreshMe();setView('home')};
+  $('dOut').onclick=async()=>{openMenu(false);clearPrivateDraft();try{await post('/api/auth/logout',{})}catch(e){}await refreshMe();setView('home')};
   $('dDel').onclick=async()=>{openMenu(false);if(!confirm('Delete your account? Your saved work, scores and login will be permanently removed. If you ever have a paid plan, it will be cancelled too. This cannot be undone.'))return;
-    try{await api('/api/auth/account',{method:'DELETE'});await refreshMe();setView('home');alert('Your account and data have been deleted.')}catch(e){alert(e.message)}};
+    try{await api('/api/auth/account',{method:'DELETE'});clearPrivateDraft();await refreshMe();setView('home');alert('Your account and data have been deleted.')}catch(e){alert(e.message)}};
   $('sampleTry').addEventListener('click',()=>setView('prep'));
   $('heroCta').addEventListener('click',()=>setView('interview'));
   try{if(!localStorage.getItem('mr_cookie_ok'))$('cookieBar').classList.remove('hide')}catch(e){}
@@ -559,3 +558,17 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
   window.__startHash=(location.hash||'').slice(1);
   const start=(location.hash||'').slice(1);setView(TITLES[start]?start:'home',false);try{history.replaceState({v:document.body.dataset.view},'','#'+document.body.dataset.view)}catch(e){}
 })();
+
+const clearDraft=document.createElement('button');clearDraft.className='ghost';clearDraft.textContent='Clear local resume draft';clearDraft.onclick=()=>{if(confirm('Delete the resume draft on this device?'))clearPrivateDraft()};$('rbPrint').after(clearDraft);
+
+function networkNotice(){let n=$('networkNotice');if(!n){n=document.createElement('div');n.id='networkNotice';n.setAttribute('role','status');$('topbar').after(n)}n.textContent=navigator.onLine?'':'Offline: AI and account tools need internet. Your open form stays here; reconnect and retry.';n.classList.toggle('hide',navigator.onLine)}addEventListener('online',networkNotice);addEventListener('offline',networkNotice);networkNotice();
+
+const recoveryPanel=document.createElement('div');recoveryPanel.innerHTML='<h3>Account recovery</h3><p class="note">No email or SMS service is used. While logged in, create a private recovery code and store it safely. It can reset your password once. Without it, support cannot prove email ownership.</p><button id="makeRecovery" class="ghost">Create / replace recovery code</button><label for="recoverEmail">Account email</label><input id="recoverEmail" type="email" autocomplete="username"><label for="recoverCode">Private recovery code</label><input id="recoverCode" type="password" autocomplete="off"><label for="recoverPw">New password</label><input id="recoverPw" type="password" autocomplete="new-password"><button id="resetRecovery">Reset password with code</button><button id="allLogout" class="ghost">Sign out all devices</button><div id="recoverResult" role="status"></div>';$('acct').append(recoveryPanel);
+$('makeRecovery').onclick=async()=>{try{const j=await post('/api/auth/recovery-code',{});$('recoverResult').textContent='Store this private code safely. Shown once: '+j.code}catch(e){$('recoverResult').textContent=e.message}};
+$('resetRecovery').onclick=async()=>{try{const j=await post('/api/auth/recover',{email:$('recoverEmail').value,code:$('recoverCode').value,password:$('recoverPw').value});$('recoverCode').value='';$('recoverPw').value='';clearPrivateDraft();await refreshMe();$('recoverResult').textContent=j.note}catch(e){$('recoverResult').textContent=e.message}};
+$('allLogout').onclick=async()=>{try{await post('/api/auth/logout-all',{});clearPrivateDraft();await refreshMe();$('recoverResult').textContent='All login sessions ended.'}catch(e){$('recoverResult').textContent=e.message}};
+
+const resumeIv=document.createElement('button');resumeIv.className='ghost';resumeIv.textContent='Resume last interview in this tab';$('btnStart').after(resumeIv);resumeIv.onclick=async()=>{try{sid=sessionStorage.getItem('mr_interview');if(!sid)throw new Error('No interview to resume in this tab.');const st=await api('/api/session/'+encodeURIComponent(sid)+'/state');if(st.done){await loadReport();return}fuOn=st.followups;$('interview').classList.remove('hide');showQ(st.question,st.number,st.total,st.pending?st.question:null)}catch(e){profErr(e.message)}};
+const version=document.createElement('p');version.className='note';version.textContent='MockRep web 1.0.3 · Online AI tools · Free plan · Android app updates install over the previous version';$('trust').append(version);
+
+const resumeNego=document.createElement('button');resumeNego.className='ghost';resumeNego.textContent='Resume last negotiation in this tab';$('btnNego').after(resumeNego);resumeNego.onclick=async()=>{try{nsid=sessionStorage.getItem('mr_negotiation');if(!nsid)throw new Error('No negotiation to resume in this tab.');const st=await api('/api/negotiation/'+encodeURIComponent(nsid)+'/state');$('chat').innerHTML='';$('negoBox').classList.remove('hide');$('negoInfo').textContent='Estimated market range: '+st.scenario.market_range+' (verify independently)';for(const t of st.transcript)bubble(t.who,t.text);$('btnSay').disabled=st.done}catch(e){$('negoErr').textContent=e.message}};

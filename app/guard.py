@@ -33,16 +33,9 @@ limiter = RateLimiter(limit=int(os.environ.get("RATE_LIMIT_PER_MIN", "60")), win
 
 
 def client_key(request: Request) -> str:
-    """Real client IP. The first X-Forwarded-For entry is client-supplied (spoofable), so prefer the
-    CDN-set header and otherwise take the entry the platform proxy appended."""
-    cf = request.headers.get("cf-connecting-ip", "").strip()
-    if cf:
-        return cf
-    parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
-    if len(parts) >= 3:
-        return parts[-3]
-    if parts:
-        return parts[-1]
+    """Use the transport peer after the server proxy middleware, never arbitrary headers."""
+    # Uvicorn's configured proxy handling owns the transport peer. Do not
+    # accept arbitrary CDN or X-Forwarded-For fields at the application layer.
     return request.client.host if request.client else "unknown"
 
 
@@ -52,6 +45,10 @@ daily = RateLimiter(limit=int(os.environ.get("AI_DAILY_PER_IP", "250")), window=
 
 def rate_limit(request: Request):
     key = client_key(request)
+    if os.environ.get("DATABASE_URL"):
+        if not shared_limit("minute", key, limiter.limit, limiter.window) or (request.method=="POST" and not shared_limit("daily", key, daily.limit, daily.window)):
+            raise HTTPException(429, "Usage limit reached or limits temporarily unavailable. Please try later.")
+        return
     if not limiter.check(key):
         raise HTTPException(429, "Too many requests. Please wait a minute and try again.")
     if request.method == "POST" and not daily.check(key):
@@ -88,3 +85,19 @@ class FailLimiter:
             if len(self.hits) > 5000:
                 for k in [k for k, v in self.hits.items() if not v or v[-1] <= now - self.window]:
                     del self.hits[k]
+
+
+def shared_limit(name: str, key: str, limit: int, window: float) -> bool:
+    """Database-backed limits survive workers/restarts; fail closed on outage."""
+    from app import accounts
+    import hashlib
+    now = time.time()
+    bucket = name + ':' + hashlib.sha256(key.encode()).hexdigest()
+    try:
+        with accounts.Conn() as c:
+            c.run("CREATE TABLE IF NOT EXISTS request_limits (bucket TEXT PRIMARY KEY, since DOUBLE PRECISION NOT NULL, n INTEGER NOT NULL)")
+            c.run("DELETE FROM request_limits WHERE since < ?", (now-172800,))
+            rows=c.run("INSERT INTO request_limits(bucket,since,n) VALUES(?,?,1) ON CONFLICT(bucket) DO UPDATE SET since=CASE WHEN request_limits.since < ? THEN EXCLUDED.since ELSE request_limits.since END, n=CASE WHEN request_limits.since < ? THEN 1 ELSE request_limits.n+1 END RETURNING n", (bucket,now,now-window,now-window))
+            return rows[0]['n'] <= limit
+    except Exception:
+        return False

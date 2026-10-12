@@ -56,7 +56,7 @@ def check():
         try:
             _refresh()
         except Exception:
-            return  # never block users because the counter store hiccuped; the in-process cache still counts
+            raise BudgetExceeded("AI spending cannot be verified")
         if _cache["total"] >= TOTAL_CAP or _cache["day"] >= DAILY_CAP:
             raise BudgetExceeded("AI budget reached")
 
@@ -88,3 +88,51 @@ def status() -> dict:
     except Exception:
         pass
     return {"total_usd": round(_cache["total"], 4), "today_usd": round(_cache["day"], 4), "total_cap": TOTAL_CAP, "daily_cap": DAILY_CAP}
+
+
+def reserve(usd: float, call_cap: int = 4000) -> tuple[str, int]:
+    """Atomically reserve the worst-case cost before one provider request.
+
+    An uncertain failed response keeps its reservation until owner reconciliation;
+    silently releasing it could allow spending beyond the cap.
+    """
+    day = _today()
+    micro = max(1, int(usd * 1e6) + 1)
+    try:
+        with _conn() as c:
+            c.run("CREATE TABLE IF NOT EXISTS spend_gate (id INTEGER PRIMARY KEY, marker INTEGER NOT NULL)")
+            c.run("INSERT INTO spend_gate(id,marker) VALUES(1,0) ON CONFLICT(id) DO NOTHING")
+            c.run("CREATE TABLE IF NOT EXISTS model_calls (day TEXT PRIMARY KEY, n INTEGER NOT NULL)")
+            _init(c)
+            if c.pg:
+                c.run("SELECT id FROM spend_gate WHERE id=1 FOR UPDATE")
+            else:
+                c.c.commit()
+                c.run("BEGIN IMMEDIATE")
+            total = c.run("SELECT COALESCE(SUM(micro),0) AS s FROM spend")[0]["s"]
+            rows = c.run("SELECT micro FROM spend WHERE day=?", (day,))
+            daily = rows[0]["micro"] if rows else 0
+            calls = c.run("SELECT n FROM model_calls WHERE day=?", (day,))
+            if total + micro > int(TOTAL_CAP * 1e6) or daily + micro > int(DAILY_CAP * 1e6) or (calls and calls[0]["n"] >= call_cap):
+                raise BudgetExceeded("AI budget reached")
+            c.run("INSERT INTO spend(day,micro) VALUES(?,?) ON CONFLICT(day) DO UPDATE SET micro=spend.micro+EXCLUDED.micro", (day, micro))
+            c.run("INSERT INTO model_calls(day,n) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET n=model_calls.n+1", (day,))
+        with _lock:
+            _cache.update(t=0.0)
+        return day, micro
+    except BudgetExceeded:
+        raise
+    except Exception as e:
+        raise BudgetExceeded("AI spending cannot be verified") from e
+
+
+def settle(reservation: tuple[str, int], actual_usd: float):
+    day, held = reservation
+    delta = max(0, int(actual_usd * 1e6) + 1) - held
+    try:
+        with _conn() as c:
+            c.run("UPDATE spend SET micro=micro+? WHERE day=?", (delta, day))
+        with _lock:
+            _cache.update(t=0.0)
+    except Exception:
+        pass  # retain conservative reservation if reconciliation storage fails

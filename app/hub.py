@@ -266,7 +266,7 @@ def camp_invite(cid: str, body: InviteIn, u=Depends(rec_write)):
                 continue
             if have >= cap:
                 raise HTTPException(403, "Invite limit reached for this campaign.")
-            tok = secrets.token_urlsafe(8)
+            tok = secrets.token_urlsafe(24)
             c.run("INSERT INTO attempts (id, campaign_id, token, name, phone, status, data, created) VALUES (?,?,?,?,?,?,?,?)",
                   (uuid.uuid4().hex, cid, tok, name, ph, "invited", "{}", _now()))
             have += 1
@@ -383,6 +383,14 @@ def org_apikey(u=Depends(owner)):
         c.run("UPDATE orgs SET api_key_hash=? WHERE id=?", (hashlib.sha256(key.encode()).hexdigest(), u["org_id"]))
         audit(c, u, "api_key_created", "")
     return {"api_key": key, "note": "Copy it now. It is shown only once."}
+
+
+@router.delete("/api/hub/org/apikey", dependencies=[Depends(rate_limit)])
+def org_revoke_apikey(u=Depends(owner)):
+    with accounts.Conn() as c:
+        c.run("UPDATE orgs SET api_key_hash=NULL WHERE id=?", (u["org_id"],))
+        audit(c, u, "api_key_revoked", "")
+    return {"ok": True}
 
 
 @router.get("/api/hub/audit", dependencies=[Depends(rate_limit)])
@@ -502,6 +510,7 @@ class StartIn(BaseModel):
     name: str = Field("", max_length=80)
     phone: str = Field("", max_length=30)
     consent: bool = False
+    resume_token: str = Field("", max_length=120)
 
 
 def _plan_for(camp, token_seed: str) -> dict:
@@ -521,6 +530,11 @@ def scr_start(token: str, body: StartIn):
     if not body.consent:
         raise HTTPException(400, "Please tick the consent box to continue.")
     with accounts.Conn() as c:
+        if c.pg:
+            c.run("SELECT id FROM campaigns WHERE id=? FOR UPDATE", (camp["id"],))
+        else:
+            c.c.commit()
+            c.run("BEGIN IMMEDIATE")
         if att is None:  # open campaign link: one attempt per phone number
             name = body.name.strip()[:80]
             ph = phone_norm(body.phone)
@@ -528,16 +542,18 @@ def scr_start(token: str, body: StartIn):
                 raise HTTPException(400, "Please enter your name and a valid phone number.")
             ex = c.run("SELECT * FROM attempts WHERE campaign_id=? AND phone=?", (camp["id"], ph))
             if ex:
+                if not body.resume_token or not secrets.compare_digest(body.resume_token, ex[0]["token"]):
+                    raise HTTPException(409, "This phone already has an attempt. Continue in the original browser or ask the recruiter for your private link.")
                 att = ex[0]
             else:
                 if not camp["open_link"]:
                     raise HTTPException(403, "This screening is by personal invite only.")
-                tok = secrets.token_urlsafe(8)
+                tok = secrets.token_urlsafe(24)
                 aid = uuid.uuid4().hex
                 c.run("INSERT INTO attempts (id, campaign_id, token, name, phone, status, data, created) VALUES (?,?,?,?,?,?,?,?)", (aid, camp["id"], tok, name, ph, "invited", "{}", _now()))
                 att = c.run("SELECT * FROM attempts WHERE id=?", (aid,))[0]
         if att["status"] == "done":
-            raise HTTPException(409, "You have already completed this screening. Thank you.")
+            return {"token": att["token"], "completed": True}
         d = json.loads(att["data"] or "{}")
         if "plan" not in d:
             d["plan"] = _plan_for(camp, att["token"])
@@ -584,6 +600,8 @@ def scr_voice(token: str, body: VoiceIn):
     plan = d["plan"]["voice"]
     if body.idx >= len(plan):
         raise HTTPException(400, "Unknown question.")
+    if len(screening.words(body.text)) < 2:
+        raise HTTPException(400, "Please answer in at least two words.")
     d["leaves"] = max(d.get("leaves", 0), body.leaves)
     d.setdefault("issued", {})
     q = plan[body.idx]
@@ -633,6 +651,12 @@ def scr_module(token: str, body: ModIn):
     d["leaves"] = max(d.get("leaves", 0), body.leaves)
     if key in d:
         return d[key]
+    if key == "typing" and (len(body.typed.strip()) < 3 or body.secs < 1):
+        raise HTTPException(400, "Enter some typed text and use a valid duration.")
+    if key == "reading" and len(screening.words(body.said)) < 2:
+        raise HTTPException(400, "No speech was recognised. Please retry or request an accommodation.")
+    if key in ("quiz", "apt") and not any(0 <= a <= 3 for a in body.answers):
+        raise HTTPException(400, "Answer at least one question before submitting.")
     plan = d["plan"]
     if key == "typing":
         res = screening.typing_result(hubdata.TYPING[plan["typing"] % len(hubdata.TYPING)], body.typed, body.secs)
@@ -655,8 +679,17 @@ class FinishIn(BaseModel):
 def scr_finish(token: str, body: FinishIn):
     camp, att, d = _live(token)
     d["leaves"] = max(d.get("leaves", 0), body.leaves)
-    parts = []
+    required = json.loads(camp["modules"])
     voice = d.get("voice", [])
+    if "voice" in required:
+        answers = {v["idx"]: v for v in voice}
+        if any(i not in answers or not answers[i].get("fu_done") for i in range(camp["n_questions"])):
+            raise HTTPException(409, "Complete every voice question and follow-up before finishing.")
+    for module in required:
+        key = {"aptitude": "apt"}.get(module, module)
+        if module != "voice" and key not in d:
+            raise HTTPException(409, "Complete all configured tests before finishing.")
+    parts = []
     if voice:
         sc = [(v["score"] * 0.75 + (v.get("fu_score", v["score"])) * 0.25) for v in voice]
         parts.append(sum(sc) / len(sc))

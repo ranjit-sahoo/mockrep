@@ -45,7 +45,15 @@ def _budget():
 
 
 def calls_today() -> int:
-    return _day["n"]
+    from app import accounts, spend
+    try:
+        with accounts.Conn() as c:
+            c.run("CREATE TABLE IF NOT EXISTS model_calls (day TEXT PRIMARY KEY, n INTEGER NOT NULL)")
+            rows=c.run("SELECT n FROM model_calls WHERE day=?", (spend._today(),))
+            return rows[0]["n"] if rows else 0
+    except Exception:
+        return -1  # unknown, never invent a zero
+
 
 
 def mock_mode() -> bool:
@@ -55,17 +63,16 @@ def mock_mode() -> bool:
 def _client():
     from openai import OpenAI
 
-    return OpenAI(base_url=BASE_URL, api_key=os.environ["NEBIUS_API_KEY"], timeout=90, max_retries=2)
+    return OpenAI(base_url=BASE_URL, api_key=os.environ["NEBIUS_API_KEY"], timeout=90, max_retries=0)
 
 
 def _log_fail(model, e):
     """Log why a model call failed (never the key) so outages are visible in the host logs."""
     import logging
-    logging.getLogger("uvicorn.error").error("LLM call failed model=%s type=%s status=%s msg=%s", model, type(e).__name__, getattr(e, "status_code", None), str(e)[:300])
+    logging.getLogger("uvicorn.error").error("LLM call failed model=%s type=%s status=%s", model, type(e).__name__, getattr(e, "status_code", None))
 
 
 def chat(messages, model: str = FAST_MODEL, **kw) -> str:
-    _budget()
     from app import spend
 
     try:
@@ -76,15 +83,26 @@ def chat(messages, model: str = FAST_MODEL, **kw) -> str:
     if model == FAST_MODEL and os.environ.get("FAST_THINKING") != "1":
         # Nano can spend 30+ seconds "thinking" before a short JSON answer. Turning it off is about 20x faster.
         kw = {**kw, "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
+    def call_once(options):
+        # UTF-8 byte length bounds input tokens conservatively; add protocol overhead.
+        tin_max = sum(len(str(m.get("content", "")).encode("utf-8")) for m in messages) + 4096
+        held = spend.reserve(spend.cost(model == STRONG_MODEL, tin_max, options["max_tokens"]), DAILY_CAP)
+        try:
+            with _SLOTS:
+                response = _client().chat.completions.create(model=model, messages=messages, **options)
+        except Exception:
+            raise  # uncertain outcome keeps its reservation, fail safe
+        usage = getattr(response, "usage", None)
+        if usage is not None and usage.prompt_tokens is not None and usage.completion_tokens is not None:
+            spend.settle(held, spend.cost(model == STRONG_MODEL, usage.prompt_tokens, usage.completion_tokens))
+        return response
     try:
-        with _SLOTS:
-            resp = _client().chat.completions.create(model=model, messages=messages, **kw)
+        resp = call_once(kw)
     except Exception as e:  # network, auth, rate limit, timeout
         if "extra_body" in kw and getattr(e, "status_code", None) == 400:
             kw = {k: v for k, v in kw.items() if k != "extra_body"}
             try:
-                with _SLOTS:
-                    resp = _client().chat.completions.create(model=model, messages=messages, **kw)
+                resp = call_once(kw)
             except Exception as e2:
                 _log_fail(model, e2)
                 raise LLMError(f"model call failed: {type(e2).__name__}") from e2
@@ -97,7 +115,6 @@ def chat(messages, model: str = FAST_MODEL, **kw) -> str:
         tin, tout = (u.prompt_tokens or 0), (u.completion_tokens or 0)
     except Exception:  # no usage reported: assume a generous size so the guard still counts
         tin, tout = sum(len(m["content"]) for m in messages) // 3, max(len(out) // 3, 1500)
-    spend.record(spend.cost(model == STRONG_MODEL, tin, tout))
     return out
 
 

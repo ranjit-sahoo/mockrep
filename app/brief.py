@@ -1,5 +1,6 @@
 """One-page company research brief, adapted to the candidate's country. Cached; uses the fast model."""
 import threading
+import time
 from urllib.parse import quote
 
 from app import companies, llm, market, prompts, singleflight
@@ -36,13 +37,13 @@ def _build_uncached(company: str, role: str, country: str) -> dict:
     if not isinstance(out, dict) or not out.get("summary"):
         raise llm.LLMError("no brief")
     res = {
-        "company": company, "role": role, "country": country, "known_profile": bool(prof),
+        "prepared_at": time.strftime("%Y-%m-%d", time.gmtime()), "source_mode": "general model brief, not live news", "company": company, "role": role, "country": country, "known_profile": bool(prof),
         "summary": _clean(out.get("summary"), 900), "market_note": _clean(out.get("market_note"), 700),
-        "recent_focus": _list(out.get("recent_focus"), 4), "culture": _list(out.get("culture"), 4),
+        "recent_focus": [], "culture": _list(out.get("culture"), 4),
         "process": _list(out.get("process"), 7), "question_style": _list(out.get("question_style"), 5),
         "why_join": _clean(out.get("why_join"), 800), "ask_them": _list(out.get("ask_them"), 4),
         "watch_out": _list(out.get("watch_out"), 3),
-        "caution": _clean(out.get("caution"), 300) or "Verify recent news on the company's own newsroom before the interview.",
+        "caution": "General interview guidance, not verified current company news. Confirm hiring details and recent news on the company website.",
         "news_url": "https://news.google.com/search?q=" + quote(company + " company"),
     }
     with _lock:

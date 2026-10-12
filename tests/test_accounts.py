@@ -30,7 +30,7 @@ def test_guest_gets_401_on_history_but_features_work():
 
 def test_register_login_logout_flow():
     c = fresh()
-    r = c.post("/api/auth/register", json={"email": "A@Example.com", "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "email": "A@Example.com", "password": "longenough1"})
     assert r.status_code == 200 and r.json()["user"]["email"] == "a@example.com"
     assert "httponly" in r.headers["set-cookie"].lower() and "samesite=lax" in r.headers["set-cookie"].lower()
     assert c.get("/api/auth/me").json()["user"]["email"] == "a@example.com"
@@ -43,16 +43,16 @@ def test_register_login_logout_flow():
 
 def test_register_validation_and_duplicates():
     c = fresh()
-    assert c.post("/api/auth/register", json={"email": "bad", "password": "longenough1"}).status_code == 400
-    assert c.post("/api/auth/register", json={"email": "b@example.com", "password": "short"}).status_code == 400
-    assert c.post("/api/auth/register", json={"email": "b@example.com", "password": "longenough1"}).status_code == 200
-    assert c.post("/api/auth/register", json={"email": "B@example.com", "password": "longenough1"}).status_code == 400
+    assert c.post("/api/auth/register", json={"agree": True, "email": "bad", "password": "longenough1"}).status_code == 400
+    assert c.post("/api/auth/register", json={"agree": True, "email": "b@example.com", "password": "short"}).status_code == 400
+    assert c.post("/api/auth/register", json={"agree": True, "email": "b@example.com", "password": "longenough1"}).status_code == 200
+    assert c.post("/api/auth/register", json={"agree": True, "email": "B@example.com", "password": "longenough1"}).status_code == 400
 
 
 def test_history_save_list_get_delete_and_isolation():
     a, b = fresh(), fresh()
-    a.post("/api/auth/register", json={"email": "h1@example.com", "password": "longenough1"})
-    b.post("/api/auth/register", json={"email": "h2@example.com", "password": "longenough1"})
+    a.post("/api/auth/register", json={"agree": True, "email": "h1@example.com", "password": "longenough1"})
+    b.post("/api/auth/register", json={"agree": True, "email": "h2@example.com", "password": "longenough1"})
     s = a.post("/api/history", json={"kind": "prep", "title": "QA pack", "data": {"questions": [1, 2]}})
     assert s.status_code == 200
     iid = s.json()["id"]
@@ -68,7 +68,7 @@ def test_history_save_list_get_delete_and_isolation():
 
 def test_history_size_limit_and_cap(monkeypatch):
     a = fresh()
-    a.post("/api/auth/register", json={"email": "h3@example.com", "password": "longenough1"})
+    a.post("/api/auth/register", json={"agree": True, "email": "h3@example.com", "password": "longenough1"})
     assert a.post("/api/history", json={"kind": "prep", "title": "big", "data": {"x": "y" * 130000}}).status_code == 400
     monkeypatch.setattr(accounts, "MAX_HISTORY_PER_USER", 3)
     for i in range(5):
@@ -78,7 +78,7 @@ def test_history_size_limit_and_cap(monkeypatch):
 
 def test_delete_account_removes_everything():
     a = fresh()
-    a.post("/api/auth/register", json={"email": "gone@example.com", "password": "longenough1"})
+    a.post("/api/auth/register", json={"agree": True, "email": "gone@example.com", "password": "longenough1"})
     a.post("/api/history", json={"kind": "prep", "title": "t", "data": {}})
     assert a.delete("/api/auth/account").status_code == 200
     assert a.get("/api/auth/me").json()["user"] is None

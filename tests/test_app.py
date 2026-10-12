@@ -122,7 +122,7 @@ def test_recruiter_screening_ranks():
     body = {"role": "QA", "jd": JD, "candidates": [{"name": "A", "resume": RESUME}, {"name": "B", "resume": RESUME + " more text here"}, {"name": "C", "resume": "tiny"}]}
     assert c.post("/api/recruiter/screen", json=body).status_code == 403  # guests and candidates cannot use recruiter tools
     rc = TestClient(app)
-    assert rc.post("/api/auth/register", json={"email": "rec1@example.com", "password": "longpassword1", "agree": True, "role": "recruiter"}).status_code == 200
+    assert rc.post("/api/auth/register", json={"agree": True, "email": "rec1@example.com", "password": "longpassword1", "agree": True, "role": "recruiter"}).status_code == 200
     d = rc.post("/api/recruiter/screen", json=body).json()
     assert d["total"] == 2 and len(d["ranked"]) == 2
     assert d["ranked"][0]["score"] >= d["ranked"][1]["score"]
@@ -454,8 +454,8 @@ def test_spoofed_forwarded_for_not_trusted():
         def __init__(s, h):
             s.headers, s.client = h, None
 
-    assert client_key(R({"cf-connecting-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "9.9.9.9"
-    assert client_key(R({"x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "9.9.9.9"
+    assert client_key(R({"cf-connecting-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "unknown"
+    assert client_key(R({"x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "unknown"
 
 
 def test_daily_model_budget(monkeypatch):
@@ -486,8 +486,8 @@ def test_bad_host_header_falls_back():
 def test_idor_history_and_unhandled_error():
     a = TestClient(app)
     b = TestClient(app)
-    a.post("/api/auth/register", json={"email": "ida@example.com", "password": "password123"})
-    rb = b.post("/api/auth/register", json={"email": "idb@example.com", "password": "password123"}); assert rb.status_code == 200, rb.text
+    a.post("/api/auth/register", json={"agree": True, "email": "ida@example.com", "password": "password123"})
+    rb = b.post("/api/auth/register", json={"agree": True, "email": "idb@example.com", "password": "password123"}); assert rb.status_code == 200, rb.text
     iid = a.post("/api/history", json={"kind": "star", "title": "t", "data": {"x": 1}}).json()["id"]
     assert a.get(f"/api/history/{iid}").status_code == 200
     assert b.get(f"/api/history/{iid}").status_code == 404
@@ -601,7 +601,7 @@ def test_progress_recorded_for_logged_in_only():
 
     u = TestClient(app)
     assert u.get("/api/progress").status_code == 401
-    assert u.post("/api/auth/register", json={"email": "prog@example.com", "password": "longenough1"}).status_code == 200
+    assert u.post("/api/auth/register", json={"agree": True, "email": "prog@example.com", "password": "longenough1"}).status_code == 200
     sid = u.post("/api/session", json={"resume": RESUME, "role": "QA Engineer", "country": "US", "followups": False}).json()["session_id"]
     u.post(f"/api/session/{sid}/answer", json={"answer": "I built a Selenium suite."})
     assert u.get(f"/api/session/{sid}/report").status_code == 200
