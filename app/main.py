@@ -94,6 +94,18 @@ async def role_gate(request: Request, call_next):
 
 
 @app.middleware("http")
+async def request_origin_guard(request: Request, call_next):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("origin")
+        allowed = {PUBLIC_BASE.rstrip("/"), str(request.base_url).rstrip("/")} | set(_origins)
+        if origin and origin.rstrip("/") not in allowed:
+            return JSONResponse({"detail": "This request must come from MockRep."}, status_code=403)
+        if request.headers.get("sec-fetch-site") == "cross-site":
+            return JSONResponse({"detail": "Cross-site changes are not allowed."}, status_code=403)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def security_headers(request: Request, call_next):
     resp = await call_next(request)
     h = resp.headers
@@ -309,7 +321,7 @@ def _ip_country(request: Request):
 
 def _cc(request: Request, supplied: str) -> str:
     """The IP-derived country always wins; what the client posts is used only when the IP gives no signal."""
-    return _ip_country(request) or supplied
+    return supplied or _ip_country(request) or "US"
 
 
 @app.get("/api/geo")
@@ -352,6 +364,15 @@ def start(body: StartIn, request: Request):
     return services.start_session(_resume_or_blank(body.resume), _need_role(body.role), body.jd, _cc(request, body.country), body.level, body.followups, body.count)
 
 
+@app.get("/api/session/{sid}/state", dependencies=LIMITED)
+def interview_state(sid: str):
+    s = _guard(services.load_interview, sid)
+    if s.get("done"):
+        return {"done": True, "session_id": sid}
+    pending=s.get("pending")
+    return {"done": False, "session_id": sid, "question": ({"type":"follow-up","question":pending["question"],"n":pending["n"]} if pending else s["questions"][s["index"]]), "number": s["index"]+1, "total": len(s["questions"]), "followups": s.get("followups", True), "pending": bool(pending)}
+
+
 @app.post("/api/session/{sid}/answer", dependencies=LIMITED)
 def answer(sid: str, body: AnswerIn):
     if not body.answer.strip():
@@ -381,6 +402,12 @@ def report(sid: str, request: Request):
 @app.post("/api/negotiation", dependencies=LIMITED)
 def nego_start(body: NegoStartIn, request: Request):
     return services.start_negotiation(_resume_or_blank(body.resume), _need_role(body.role), _cc(request, body.country), body.current)
+
+
+@app.get("/api/negotiation/{sid}/state", dependencies=LIMITED)
+def negotiation_state(sid: str):
+    s = _guard(services._nego, sid)
+    return {"session_id": sid, "scenario": s["scenario"], "transcript": s.get("transcript", []), "done": s.get("done", False)}
 
 
 @app.post("/api/negotiation/{sid}/say", dependencies=LIMITED)
@@ -587,7 +614,7 @@ def auth_register(body: AuthIn, request: Request):
         raise HTTPException(400, "Could not create the account.")
     if not _signup_limiter.check(client_key(request)):
         raise HTTPException(429, "Too many sign-ups from this network today. Please try again later.")
-    if body.agree is False:
+    if body.agree is not True:
         raise HTTPException(400, "Please agree to the Terms and Privacy Policy to create an account.")
     try:
         user, token = accounts.register(body.email, body.password, body.role or "candidate", body.invite or "")
@@ -616,6 +643,34 @@ def auth_login(body: AuthIn, request: Request):
 @app.post("/api/auth/logout", dependencies=LIMITED)
 def auth_logout(request: Request):
     accounts.logout(request.cookies.get(COOKIE))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(COOKIE, path="/")
+    return resp
+
+
+class RecoveryIn(BaseModel):
+    email: str = Field(max_length=320)
+    code: str = Field(max_length=120)
+    password: str = Field(min_length=8, max_length=200)
+
+
+@ app.post("/api/auth/recovery-code", dependencies=[Depends(auth_limit)])
+def recovery_code(u=Depends(need_user)):
+    return {"code": accounts.recovery_create(u["id"])}
+
+
+@app.post("/api/auth/recover", dependencies=[Depends(auth_limit)])
+def recover_account(body: RecoveryIn):
+    try:
+        return accounts.recovery_reset(body.email, body.code, body.password)
+    except PermissionError as e:
+        raise HTTPException(401, str(e))
+
+
+@app.post("/api/auth/logout-all", dependencies=[Depends(auth_limit)])
+def logout_all(u=Depends(need_user)):
+    with accounts.Conn() as c:
+        c.run("DELETE FROM auth_sessions WHERE user_id=?", (u["id"],))
     resp = JSONResponse({"ok": True})
     resp.delete_cookie(COOKIE, path="/")
     return resp
