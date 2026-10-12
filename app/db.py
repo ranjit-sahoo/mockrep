@@ -49,7 +49,8 @@ def create(data: dict) -> str:
 def load(sid: str):
     with accounts.Conn() as c:
         _ensure(c)
-        rows = c.run("SELECT data FROM sessions WHERE id=?", (sid,))
+        c.run("DELETE FROM sessions WHERE created <= 0 OR created < ?", (time.time() - TTL_SECONDS,))
+        rows = c.run("SELECT data FROM sessions WHERE id=? AND created >= ?", (sid, time.time() - TTL_SECONDS))
     return json.loads(rows[0]["data"]) if rows else None
 
 
