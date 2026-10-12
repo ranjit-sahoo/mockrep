@@ -354,7 +354,12 @@ def recovery_reset(email: str, code: str, password: str):
         raise ValueError("Password must be 8 to 200 characters.")
     with Conn() as c:
         c.run("CREATE TABLE IF NOT EXISTS account_recovery (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL)")
-        rows = c.run("SELECT u.id,r.code_hash FROM users u JOIN account_recovery r ON r.user_id=u.id WHERE u.email=?", ((email or "").strip().lower(),))
+        if c.pg:
+            rows = c.run("SELECT u.id,r.code_hash FROM users u JOIN account_recovery r ON r.user_id=u.id WHERE u.email=? FOR UPDATE OF r", ((email or "").strip().lower(),))
+        else:
+            c.c.commit()
+            c.run("BEGIN IMMEDIATE")
+            rows = c.run("SELECT u.id,r.code_hash FROM users u JOIN account_recovery r ON r.user_id=u.id WHERE u.email=?", ((email or "").strip().lower(),))
         if not rows or not hmac.compare_digest(rows[0]["code_hash"], _hash_token(code)):
             raise PermissionError("Email or recovery code is incorrect.")
         uid = rows[0]["id"]
