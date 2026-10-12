@@ -75,7 +75,7 @@ function startScreen(){
   h('label',{class:'c',for:'cb'},cb,h('span',{},t('consent'))),err,saved?h('p',{class:'mute'},t('resume')):null,
   h('button',{onclick:async ev=>{err.textContent='';if(!cb.checked){err.textContent=t('need');return}
    if(needVoice&&c.modules.includes('voice')&&!SR){err.textContent=t('nomic');return}
-   ev.target.disabled=true;try{const r=await post('/api/s/'+encodeURIComponent(ORIG)+'/start',{name:name.value,phone:ph.value,consent:true});TOKEN=r.token;PLAN=r.plan;STATE.prog=r.progress;STATE.pending=r.pending_followup;try{localStorage.setItem('mr_s_'+ORIG,TOKEN)}catch(e){}
+   ev.target.disabled=true;try{const r=await post('/api/s/'+encodeURIComponent(ORIG)+'/start',{name:name.value,phone:ph.value,consent:true,resume_token:saved||''});TOKEN=r.token;if(r.completed){STATE.render=finish2;finish2();return}PLAN=r.plan;STATE.prog=r.progress;STATE.pending=r.pending_followup;try{localStorage.setItem('mr_s_'+ORIG,TOKEN)}catch(e){}
     if(r.plan.modules.includes('voice')&&SR&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(x=>x.stop())}catch(e){err.textContent=t('mic');ev.target.disabled=false;return}}
     run()}catch(e){err.textContent=e.message;ev.target.disabled=false}}},t('start'))))}
 
@@ -134,6 +134,7 @@ function mcqFlow(mod){STATE.render=()=>mcqFlow(mod);const items=PLAN[mod],ans=it
  setLang(l||INFO.campaign.lang||'en');document.title=(INFO.campaign.name||'Screening')+' - '+(INFO.brand.name||'MockRep');
  if(INFO.brand.color)document.documentElement.style.setProperty('--brand',INFO.brand.color);
  const b=$('brand');if(INFO.brand.logo)b.append(h('img',{src:INFO.brand.logo,alt:''}));b.append(INFO.brand.name||'MockRep');
- if(INFO.status==='done')return show(h('div',{class:'card'},h('h1',{},t('done')),h('p',{},t('doneTxt'))));
+ if(INFO.status==='done'){STATE.render=finish2;return finish2()}
+ if(INFO.open){let saved=null;try{saved=localStorage.getItem('mr_s_'+ORIG)}catch(e){}if(saved){try{const mine=await api('/api/s/'+encodeURIComponent(saved));if(mine.status==='done'){TOKEN=saved;INFO=mine;STATE.render=finish2;return finish2()}}catch(e){}}}
  startScreen()})();
 })();
