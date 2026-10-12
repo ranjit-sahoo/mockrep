@@ -18,6 +18,11 @@ from app import analytics as _analytics  # noqa: E402
 _analytics.install(app)
 from app import hub as _hub  # noqa: E402
 
+
+@app.get("/.well-known/assetlinks.json")
+def android_domain_association():
+    return JSONResponse(content=[{'relation': ['delegate_permission/common.handle_all_urls'], 'target': {'namespace': 'android_app', 'package_name': 'com.ranjitsahoo.mockrep', 'sha256_cert_fingerprints': ['73:D6:AA:AD:49:89:1B:FE:84:5A:9F:AF:0F:9B:DD:CA:7F:7A:24:D6:A5:24:48:4E:A6:8E:D1:D1:D6:B5:02:70']}}])
+
 app.include_router(_hub.router)
 
 # A future mobile shell or separate web front end can call the API cross-origin.
@@ -769,8 +774,3 @@ def index():
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
-
-
-@app.get("/.well-known/assetlinks.json")
-def android_domain_association():
-    return [{'relation': ['delegate_permission/common.handle_all_urls'], 'target': {'namespace': 'android_app', 'package_name': 'com.ranjitsahoo.mockrep', 'sha256_cert_fingerprints': ['73:D6:AA:AD:49:89:1B:FE:84:5A:9F:AF:0F:9B:DD:CA:7F:7A:24:D6:A5:24:48:4E:A6:8E:D1:D1:D6:B5:02:70']}}]
