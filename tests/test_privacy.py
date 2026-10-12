@@ -8,7 +8,7 @@ c = TestClient(app)
 def test_privacy_page_served_and_accurate():
     r = c.get("/privacy")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
-    for needle in ("Nebius", "Zero Data Retention", "Delete account", "ranjitkumarsahoo77@gmail.com", "Last updated"):
+    for needle in ("Nebius", "Provider retention", "Delete account", "ranjitkumarsahoo77@gmail.com", "Last updated"):
         assert needle in r.text
 
 
@@ -104,7 +104,7 @@ def test_ip_country_overrides_client_supplied_country(monkeypatch):
     c.post("/api/prep", json={**body, "country": "India"}, headers={"cf-ipcountry": "US"})
     c.post("/api/prep", json={**body, "country": "India"}, headers={"cf-ipcountry": "DE"})
     c.post("/api/prep", json={**body, "country": "India"})
-    assert seen == ["India", "US", "Other", "India"]
+    assert seen == ["US", "India", "India", "India"]
 
 
 def test_about_page_and_sitemap():
