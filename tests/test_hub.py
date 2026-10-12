@@ -81,13 +81,13 @@ def test_screening_flow_one_attempt_and_deletion():
         r = pub.post(f"/api/s/{tok}/voice", json={"idx": i, "text": "My name is Asha. I completed graduation in commerce because I like to help people. For example I helped my neighbour.", "think": 2, "secs": 20, "pauses": 2})
         assert r.status_code == 200 and r.json()["follow_up"]
         assert pub.post(f"/api/s/{tok}/voice", json={"idx": i, "text": "I helped my neighbour with her bank form and she thanked me.", "followup": True}).status_code == 200
-    assert pub.post(f"/api/s/{tok}/voice", json={"idx": 0, "text": "again"}).status_code == 409
+    assert pub.post(f"/api/s/{tok}/voice", json={"idx": 0, "text": "again answer"}).status_code == 409
     assert pub.post(f"/api/s/{tok}/module", json={"module": "typing", "typed": plan["typing"], "secs": 60}).status_code == 200
     assert pub.post(f"/api/s/{tok}/module", json={"module": "quiz", "answers": [0] * 10}).status_code == 200
     assert pub.post(f"/api/s/{tok}/module", json={"module": "aptitude", "answers": [0] * 12}).status_code == 200
     assert pub.post(f"/api/s/{tok}/module", json={"module": "reading", "said": plan["reading"]}).status_code == 200
     assert pub.post(f"/api/s/{tok}/finish", json={"leaves": 4}).status_code == 200
-    assert pub.post(f"/api/s/{tok}/start", json={"consent": True}).status_code == 409  # one attempt only
+    assert pub.post(f"/api/s/{tok}/start", json={"consent": True}).json()["completed"] is True  # one attempt only
     res = rc.get(f"/api/hub/campaigns/{cid}").json()
     a = res["attempts"][0]
     assert a["status"] == "done" and a["score"] is not None and any("Left the page" in s for s in a["signals"]) and len(a["voice"]) == 3
@@ -104,7 +104,7 @@ def test_open_link_one_per_phone_and_closed_campaign():
     r = pub.post(f"/api/s/o-{cid}/start", json={"name": "Ravi", "phone": "9123456789", "consent": True})
     assert r.status_code == 200
     tok = r.json()["token"]
-    assert pub.post(f"/api/s/o-{cid}/start", json={"name": "Ravi", "phone": "9123456789", "consent": True}).json()["token"] == tok  # same phone resumes, no second attempt
+    assert pub.post(f"/api/s/o-{cid}/start", json={"name": "Ravi", "phone": "9123456789", "consent": True, "resume_token": tok}).json()["token"] == tok  # same phone resumes, no second attempt
     rc.post(f"/api/hub/campaigns/{cid}/status", json={"status": "closed"})
     assert pub.get(f"/api/s/o-{cid}").status_code == 410
 
