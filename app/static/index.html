@@ -145,7 +145,10 @@ body[data-view=bank] .layout,body[data-view=code] .layout,body[data-view=builder
 body.guided #acct{display:none}
 
 /* no settings in the customer's hands: automatic defaults (auto difficulty, 5 questions, follow-ups on, default voice) */
-label[for=ivLevel],#ivLevel,label[for=ivMode],#ivMode,#ivFu,#ivFu+*,label:has(>#ivFu),#voiceOpts,#vTest{display:none!important}
+#menuBtn{flex-shrink:0;min-width:48px;min-height:48px}
+#hubRoot button.sm{min-height:48px!important}#hubRoot label{display:block}
+.foot a{display:inline-block;min-height:48px;padding:12px 4px}
+#voiceOpts.hide{display:none!important}
 #btnStart{width:100%;font-size:18px;padding:16px}
 </style></head><body><div id="wake" class="hide" role="status">Waking the server (about 30 s). It sleeps when nobody is using it. Your page will continue by itself.</div><a class="skip" href="#profile">Skip to the main form</a><div id="topbar"><button id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button><div class="tbrand"><span class="logo">MR</span>MockRep</div><div id="viewTitle"></div></div>
 <div id="scrim" class="hide"></div>
