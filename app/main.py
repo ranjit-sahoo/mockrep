@@ -21,7 +21,7 @@ from app import hub as _hub  # noqa: E402
 
 @app.get("/.well-known/assetlinks.json")
 def android_domain_association():
-    return JSONResponse(content=[{'relation': ['delegate_permission/common.handle_all_urls'], 'target': {'namespace': 'android_app', 'package_name': 'com.ranjitsahoo.mockrep', 'sha256_cert_fingerprints': ['73:D6:AA:AD:49:89:1B:FE:84:5A:9F:AF:0F:9B:DD:CA:7F:7A:24:D6:A5:24:48:4E:A6:8E:D1:D1:D6:B5:02:70']}}])
+    return JSONResponse(content=[{'relation': ['delegate_permission/common.handle_all_urls'], 'target': {'namespace': 'android_app', 'package_name': 'com.ranjitsahoo.mockrep', 'sha256_cert_fingerprints': ['73:D6:AA:AD:49:89:1B:FE:84:5A:9F:AF:0F:9B:DD:CA:7F:7A:24:D6:A5:24:48:4E:A6:8E:D1:D1:D6:B5:02:70', 'D0:A9:9B:65:B3:DB:EC:83:11:42:2F:37:FD:0B:EE:30:95:99:DF:91:27:75:86:0F:92:59:C2:6E:9E:35:47:6D']}}])
 
 app.include_router(_hub.router)
 
