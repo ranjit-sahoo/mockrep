@@ -128,6 +128,9 @@ async def security_headers(request: Request, call_next):
 _NOT_FOUND = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found - MockRep</title><meta name="robots" content="noindex"><link rel="icon" href="/static/icons/icon-192.png"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1020;color:#eef2fb;font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:20px}.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#9be000,#76b900);display:inline-grid;place-items:center;color:#0b1200;font-weight:900}h1{font-size:30px;margin:14px 0 6px}p{color:#9aa6c0;margin:0 0 20px}a{display:inline-block;padding:12px 22px;border-radius:12px;background:linear-gradient(135deg,#3b66e0,#2c52c4);color:#fff;font-weight:700;text-decoration:none}</style></head><body><main><span class="logo">MR</span><h1>This page was not found</h1><p>The link may be old or mistyped.</p><a href="/">Go to MockRep home</a></main></body></html>"""
 
 
+_THANK_YOU = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Thank you - MockRep</title><meta name="description" content="Thanks for joining the MockRep Pro waitlist."><meta name="robots" content="noindex"><link rel="icon" href="/static/icons/icon-192.png"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1020;color:#eef2fb;font:16px/1.6 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:20px}.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#9be000,#76b900);display:inline-grid;place-items:center;color:#0b1200;font-weight:900}h1{font-size:30px;margin:14px 0 6px}p{color:#9aa6c0;margin:0 0 20px;max-width:420px}a{display:inline-block;padding:12px 22px;border-radius:12px;background:linear-gradient(135deg,#3b66e0,#2c52c4);color:#fff;font-weight:700;text-decoration:none}</style></head><body><main><span class="logo">MR</span><h1>You are on the list</h1><p>Thank you for joining the MockRep Pro waitlist. One email when Pro opens, no spam. You can ask to be removed any time.</p><a href="/">Back to MockRep home</a></main></body></html>"""
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_error(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and not request.url.path.startswith("/api/") and "text/html" in request.headers.get("accept", ""):
@@ -821,6 +824,12 @@ def terms():
 @app.get("/cookies")
 def cookies_page():
     return FileResponse(os.path.join(STATIC, "cookies.html"), media_type="text/html")
+
+
+
+@app.get("/thank-you")
+def thank_you():
+    return HTMLResponse(_THANK_YOU, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/")

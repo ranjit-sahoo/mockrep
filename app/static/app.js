@@ -516,7 +516,7 @@ $('btnPrep').addEventListener('click',()=>{if(document.body.classList.contains('
 const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textContent='';
   if(!EMAIL_RE.test($('wlEmail').value.trim())){$('wlMsg').textContent='Please enter a valid email address.';return}
-  try{const j=await post('/api/waitlist',{email:$('wlEmail').value.trim(),website:$('wlHp').value});$('wlMsg').textContent=j.new?'You are on the list. Thank you!':'You are already on the list. Thank you!';$('wlEmail').value=''}catch(e){$('wlMsg').textContent=e.message}});
+  try{const j=await post('/api/waitlist',{email:$('wlEmail').value.trim(),website:$('wlHp').value});window.location.assign('/thank-you')}catch(e){$('wlMsg').textContent=e.message}});
 
 // ---- simple menu / one view at a time
 (function(){
