@@ -552,8 +552,9 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
     try{await api('/api/auth/account',{method:'DELETE'});clearPrivateDraft();await refreshMe();setView('home');alert('Your account and data have been deleted.')}catch(e){alert(e.message)}};
   $('sampleTry').addEventListener('click',()=>setView('prep'));
   $('heroCta').addEventListener('click',()=>setView('interview'));
-  try{if(!localStorage.getItem('mr_cookie_ok'))$('cookieBar').classList.remove('hide')}catch(e){}
-  $('cookieOk').onclick=()=>{$('cookieBar').classList.add('hide');try{localStorage.setItem('mr_cookie_ok','1')}catch(e){}};
+  try{if(!localStorage.getItem('mr_cookie_ok')){$('cookieBar').classList.remove('hide');document.body.classList.add('ck')}}catch(e){}
+  $('cookieOk').onclick=()=>{$('cookieBar').classList.add('hide');document.body.classList.remove('ck');try{localStorage.setItem('mr_cookie_ok','1')}catch(e){}};
+  const scb=$('stickyCtaBtn');if(scb)scb.onclick=()=>$('heroCta').click();
   $('mVoice').addEventListener('click',()=>{if(!prefs.accent){const c=document.querySelector('#countries .on');if(c&&c.dataset.c==='India')prefs.accent='en-IN'}},true);
   window.__startHash=(location.hash||'').slice(1);
   const start=(location.hash||'').slice(1);setView(TITLES[start]?start:'home',false);try{history.replaceState({v:document.body.dataset.view},'','#'+document.body.dataset.view)}catch(e){}

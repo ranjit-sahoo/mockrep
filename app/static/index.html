@@ -78,6 +78,11 @@ h2{margin:6px 0 8px;letter-spacing:-.4px;font-size:var(--fs-xl);line-height:var(
 .chart{width:100%;height:auto;background:var(--card2);border:1px solid var(--line);border-radius:12px}
 .legend span{display:inline-block;margin:6px 14px 0 0;font-size:var(--fs-xs);color:var(--mute)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
 #prArea{display:none}
+#stickyCta{position:fixed;left:0;right:0;bottom:0;z-index:55;display:none;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:rgba(11,16,32,.94);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+#stickyCta button{width:100%;margin:0;padding:14px 20px;font-size:16px}
+@media(max-width:768px){body[data-view=home] #stickyCta{display:block}}
+body.ck #stickyCta{bottom:86px}
+
 body.guided #acct,body.guided .tabs,body.guided .foot .hide-guided,body.guided #t-review,body.guided #t-match,body.guided #t-interview,body.guided #t-star,body.guided #t-brief,body.guided #t-nego,body.guided #t-bank,body.guided #t-code,body.guided #t-builder,body.guided #t-recruiter,body.guided #t-history,body.guided #prepLead{display:none}
 #guide{display:none}body.guided #guide{display:block}
 .steps{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}.steps span{border:1px solid var(--line);background:var(--card2);border-radius:99px;padding:4px 12px;font-size:var(--fs-xs);color:var(--mute)}.steps b{color:var(--acc)}
@@ -366,7 +371,8 @@ body.guided #acct{display:none}
 <details><summary>Is it really free?</summary><p>Yes. There is a daily limit on AI use so the free service stays available. If the limit is reached, the question bank, coding practice and resume builder still work.</p></details></section>
 <div id="prArea"></div>
 </main></div>
-<div class="foot"><p>MockRep web 1.0.3 · Android update 1.0.3 · Online AI tools</p>Powered by NVIDIA Nemotron models on Nebius Token Factory. AI feedback and salary figures are estimates, not guarantees. <br><a href="/about">About</a> &middot; <a href="mailto:ranjitkumarsahoo77@gmail.com">Contact</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy Policy</a> &middot; <a href="/cookies">Cookies</a> &middot; <a href="https://github.com/ranjit-sahoo/mockrep" rel="noopener">Source code</a></div>
+<div class="foot"><p>MockRep web 1.0.4 · Android update 1.0.4 · Online AI tools</p>Powered by NVIDIA Nemotron models on Nebius Token Factory. AI feedback and salary figures are estimates, not guarantees. <br><a href="/about">About</a> &middot; <a href="mailto:ranjitkumarsahoo77@gmail.com">Contact</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy Policy</a> &middot; <a href="/cookies">Cookies</a> &middot; <a href="https://github.com/ranjit-sahoo/mockrep" rel="noopener">Source code</a></div>
 </div>
+<div id="stickyCta"><button id="stickyCtaBtn" type="button">Start a free mock interview</button></div>
 <div id="cookieBar" class="hide" role="dialog" aria-label="Cookie notice"><span>MockRep uses one login cookie only if you sign in. No ads or tracking cookies. <a href="/cookies">Cookie policy</a></span><button id="cookieOk" type="button">Got it</button></div>
 <script src="/static/app.js" defer></script><script src="/static/hubdata.js" defer></script><script src="/static/hub.js" defer></script></body></html>
