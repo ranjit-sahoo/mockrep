@@ -13,6 +13,25 @@ async function api(url,opts){
   return j;
 }
 const post=(url,body)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+// ---- AI content reporting (Google Play generative-AI policy)
+function flagDlg(kind,excerpt){
+  const old=$('flagOv');if(old)old.remove();
+  const ov=document.createElement('div');ov.id='flagOv';ov.className='flagov';
+  ov.innerHTML=`<div class="flagbox" role="dialog" aria-modal="true" aria-label="Report AI content"><h3 style="margin-top:0">Report this AI content</h3><p class="note">Tell us if this AI-generated content is offensive, harmful or wrong. We review every report.</p><textarea id="flagWhy" placeholder="What is wrong with it? (optional)" maxlength="600" aria-label="Reason (optional)"></textarea><div><button id="flagSend" type="button">Send report</button><button id="flagCancel" type="button" class="ghost">Cancel</button></div><div id="flagMsg" class="note" role="status"></div></div>`;
+  document.body.appendChild(ov);
+  $('flagCancel').onclick=()=>ov.remove();
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove()});
+  $('flagSend').onclick=()=>busy($('flagSend'),'Sending...',async()=>{try{await post('/api/content-report',{kind,reason:$('flagWhy').value.trim(),excerpt});$('flagMsg').textContent='Thank you - we will review this report.';setTimeout(()=>ov.remove(),1500)}catch(e){$('flagMsg').textContent=e.message}});
+}
+function addFlag(el,kind){
+  if(!el||el.querySelector(':scope > .flagbtn'))return;
+  const b=document.createElement('button');b.type='button';b.className='flagbtn';b.textContent='Report AI content';
+  b.onclick=()=>flagDlg(kind,(el.innerText||'').slice(0,500));
+  el.appendChild(b);
+}
+const FLAG_TARGETS={prepOut:'prep',reviewOut:'resume-review',matchOut:'jd-match',starOut:'star-answer',briefOut:'company-brief',cpOut:'coding-review',cpHints:'coding-hint',negoRep:'negotiation',chat:'negotiation',bankCoOut:'question-bank-ai',rbPrev:'resume-builder',report:'interview-report',fb:'interview-feedback',scrOut:'recruiter-screening'};
+const flagObs=new MutationObserver(rs=>{for(const r of rs){const el=r.target;const kind=FLAG_TARGETS[el.id];if(kind&&(el.childElementCount||el.textContent.trim()))addFlag(el,kind)}});
+for(const id in FLAG_TARGETS){const el=$(id);if(el)flagObs.observe(el,{childList:true})}
 async function busy(btn,label,fn){const t=btn.textContent,w=btn.offsetWidth;if(w)btn.style.minWidth=w+'px';btn.disabled=true;btn.textContent=label;try{await fn()}finally{btn.disabled=false;btn.textContent=t;btn.style.minWidth=''}}
 function role(){const v=$('role').value.trim();if(!v)throw new Error('Enter your target role.');return v}
 function resumeText(){const v=$('resume').value.trim();if(v.length<30)throw new Error('Paste your resume text or upload a PDF/TXT file.');return v}
@@ -163,7 +182,7 @@ function showPrep(d,c,jdUsed,saved){
   h+='<p><button class="ghost" data-pdf="prep">Download prep pack as PDF</button></p>';
   if(!saved)h+='<p><button class="ghost" id="saveBtn" data-save="prep">Save this pack to my history</button></p>';
   h+='<div class="nextcta"><b>Next step: practice these out loud.</b><p class="note" style="margin:4px 0 0">A mock interview scores each answer and gives you a report.</p><button id="ctaIv">Start a mock interview</button></div>';
-  $('prepOut').innerHTML=h;wireCode();$('ctaIv').onclick=()=>{document.querySelector('[data-t=interview]').click();$('t-interview').scrollIntoView({behavior:'smooth',block:'start'})};
+  $('prepOut').innerHTML=h;addFlag($('prepOut'),'prep');wireCode();$('ctaIv').onclick=()=>{document.querySelector('[data-t=interview]').click();$('t-interview').scrollIntoView({behavior:'smooth',block:'start'})};
 }
 const codeHtml=c=>c.coding_questions.length?c.coding_questions.map(cCard).join('')+'<p><button class="ghost" id="prepToCode">Practice coding with AI review</button></p>':'<p class="note">Could not prepare coding questions right now. Try the Coding Practice tab.</p>';
 const wireCode=()=>{const b=$('prepToCode');if(b)b.onclick=()=>document.querySelector('[data-t=code]').click()};

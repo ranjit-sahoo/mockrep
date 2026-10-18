@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import accounts, bank, brief, builder, card, coding, companies, icons, llm, prep, services, star
+from app import accounts, bank, brief, builder, card, coding, companies, icons, llm, prep, reports, services, star
 from app.guard import FailLimiter, RateLimiter, client_key, rate_limit
 
 app = FastAPI(title="MockRep", docs_url=None, redoc_url=None, openapi_url=None)
@@ -38,6 +38,7 @@ LIMITED = [Depends(rate_limit)]
 _signup_limiter = RateLimiter(limit=int(os.environ.get("SIGNUPS_PER_DAY", "10")), window=86400.0)
 _fail_limiter = FailLimiter(limit=5, window=1800.0)
 _waitlist_limiter = RateLimiter(limit=int(os.environ.get("WAITLIST_PER_DAY", "10")), window=86400.0)
+_report_limiter = RateLimiter(limit=int(os.environ.get("REPORTS_PER_DAY", "10")), window=86400.0)
 _auth_limiter = RateLimiter(limit=int(os.environ.get("AUTH_RATE_PER_MIN", "10")), window=60.0)
 COOKIE = "ip_session"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://mockrep.onrender.com")
@@ -697,6 +698,23 @@ def auth_delete(request: Request, u=Depends(need_user)):
 @app.get("/api/progress", dependencies=LIMITED)
 def progress(u=Depends(need_user)):
     return {"points": accounts.list_progress(u["id"])}
+
+
+class ReportIn(BaseModel):
+    kind: str = Field(max_length=40)
+    reason: str = Field("", max_length=600)
+    excerpt: str = Field("", max_length=600)
+
+
+@app.post("/api/content-report", dependencies=LIMITED)
+def content_report(body: ReportIn, request: Request):
+    """In-app flagging of offensive AI-generated content (Play generative-AI policy)."""
+    if not _report_limiter.check(client_key(request)):
+        raise HTTPException(429, "Too many reports from this network today. Please email us instead.")
+    u = current_user(request)
+    kind = re.sub(r"[^a-z0-9_-]", "", body.kind.lower())[:40] or "other"
+    rid = reports.add(kind, body.reason.strip(), body.excerpt.strip(), (u or {}).get("email", ""))
+    return {"ok": True, "id": rid}
 
 
 class WaitIn(BaseModel):
