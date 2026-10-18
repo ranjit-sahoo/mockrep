@@ -481,8 +481,8 @@ $('btnNegoRep').onclick=()=>busy($('btnNegoRep'),'Preparing report...',async()=>
 
 // ---- recruiter mode
 let candN=0;
-function addCand(){if(document.querySelectorAll('.cand').length>=10){$('scrErr').textContent='Maximum 10 candidates.';return}candN++;
-  const d=document.createElement('div');d.className='cand';d.innerHTML=`<input type="text" class="cn" maxlength="80" placeholder="Candidate name" aria-label="Candidate name"><textarea class="cr" placeholder="Paste resume text..." aria-label="Resume"></textarea>
+function addCand(){if(document.querySelectorAll('#cands .candRow').length>=10){$('scrErr').textContent='Maximum 10 candidates.';return}candN++;
+  const d=document.createElement('div');d.className='cand candRow';d.innerHTML=`<input type="text" class="cn" maxlength="80" placeholder="Candidate name" aria-label="Candidate name"><textarea class="cr" placeholder="Paste resume text..." aria-label="Resume"></textarea>
   <input type="file" class="cf" accept=".pdf,.txt" aria-label="Upload resume"> <button class="ghost rm">Remove</button>`;
   d.querySelector('.rm').onclick=()=>d.remove();
   d.querySelector('.cf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);
@@ -490,7 +490,7 @@ function addCand(){if(document.querySelectorAll('.cand').length>=10){$('scrErr')
   $('cands').appendChild(d)}
 $('btnAddCand').onclick=addCand;addCand();addCand();
 $('btnScreen').onclick=async()=>{$('scrErr').textContent='';profErr('');$('btnScreen').disabled=true;$('scrBusy').classList.remove('hide');
-  try{const cs=[...document.querySelectorAll('.cand')].map((d,i)=>({name:d.querySelector('.cn').value||'Candidate '+(i+1),resume:d.querySelector('.cr').value})).filter(c=>c.resume.trim().length>=30);
+  try{const cs=[...document.querySelectorAll('#cands .candRow')].map((d,i)=>({name:d.querySelector('.cn').value||'Candidate '+(i+1),resume:d.querySelector('.cr').value})).filter(c=>c.resume.trim().length>=30);
     if(!cs.length)throw new Error('Add at least one candidate resume.');
     const d=await post('/api/recruiter/screen',{role:role(),jd:$('jd').value,country:await ensureCountry(),candidates:cs});
     $('scrOut').innerHTML='<h2>Ranked candidates</h2>'+d.ranked.map((r,i)=>`<div class="w g"><b>#${i+1} ${esc(r.name)}</b> <span class="score" style="font-size:22px">${esc(r.score)}</span>/100 <span class="rec-${esc(r.recommendation)}"><b>${esc(r.recommendation)}</b></span>
