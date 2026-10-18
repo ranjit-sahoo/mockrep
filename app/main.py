@@ -700,19 +700,32 @@ def progress(u=Depends(need_user)):
     return {"points": accounts.list_progress(u["id"])}
 
 
+REPORT_KINDS = {
+    "prep", "resume-review", "jd-match", "star-answer", "company-brief",
+    "coding-review", "coding-hint", "negotiation", "question-bank-ai",
+    "resume-builder", "interview-report", "interview-feedback",
+    "recruiter-screening", "self-test", "other",
+}
+
+
 class ReportIn(BaseModel):
     kind: str = Field(max_length=40)
     reason: str = Field("", max_length=600)
     excerpt: str = Field("", max_length=600)
+    website: str | None = Field(None, max_length=200)  # honeypot
 
 
 @app.post("/api/content-report", dependencies=LIMITED)
 def content_report(body: ReportIn, request: Request):
     """In-app flagging of offensive AI-generated content (Play generative-AI policy)."""
+    if body.website:
+        return {"ok": True, "id": "ignored"}  # bot filled the hidden field: pretend success, store nothing
     if not _report_limiter.check(client_key(request)):
         raise HTTPException(429, "Too many reports from this network today. Please email us instead.")
     u = current_user(request)
-    kind = re.sub(r"[^a-z0-9_-]", "", body.kind.lower())[:40] or "other"
+    kind = re.sub(r"[^a-z0-9_-]", "", body.kind.lower())[:40]
+    if kind not in REPORT_KINDS:
+        kind = "other"
     rid = reports.add(kind, body.reason.strip(), body.excerpt.strip(), (u or {}).get("email", ""))
     return {"ok": True, "id": rid}
 
