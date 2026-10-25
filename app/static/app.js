@@ -333,8 +333,11 @@ const micMsg=e=>e==='not-allowed'||e==='service-not-allowed'?'Microphone is bloc
 function micSet(html){$('micState').innerHTML=html}
 function startMic(){if(!SR||listening)return;
   const go=()=>{wantMic=true;micFinal='';micRetries=0;micGot=false;baseText=$('ans').value.trim();if(voice&&!ANDROID)recStart();beginRec()};
-  if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){
-    navigator.mediaDevices.enumerateDevices().then(ds=>{if(ds.length&&!ds.some(d=>d.kind==='audioinput')){micSet('No microphone found on this device. You can type your answer instead.');return}go()}).catch(()=>go());
+  if(!ANDROID&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(s=>{s.getTracks().forEach(t=>t.stop());go()}).catch(e=>{
+      if(e&&(e.name==='NotFoundError'||e.name==='OverconstrainedError'||e.name==='DevicesNotFoundError'))micSet('No microphone found on this device. You can type your answer instead.');
+      else if(e&&(e.name==='NotAllowedError'||e.name==='SecurityError'))micSet(micMsg('not-allowed'));
+      else go()});
     return}
   go()}
 function beginRec(){
