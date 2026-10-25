@@ -29,6 +29,9 @@ _RULES = [
     (re.compile(r"=\s*lower ranking", re.I), "which can lower ranking"),
     (re.compile(r"\bwill be (?:rejected|filtered out|screened out)\b", re.I), "may be filtered out"),
     (re.compile(r"\bwill not (?:pass|get|clear)\b", re.I), "may not pass"),
+    # Unsupported ranking certainty about screening.
+    (re.compile(r"\bthe first screen-out factor\b", re.I), "a common early screening question"),
+    (re.compile(r"\bthe (?:number one|#1|top) (?:screen-out|dealbreaker|deal-breaker)\b", re.I), "a common screening concern"),
 ]
 
 # Sentences containing a banned phrase that survived replacement (paraphrases
@@ -146,17 +149,86 @@ def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
     return text
 
 
-def sanitize_with_source(value, source: str, fixes: list | None = None):
-    """sanitize() plus invented-metric scrubbing against the source documents."""
+# Credential / legal-status assertions that must never be presented as
+# copy-ready fact unless the resume itself evidences the topic. When the
+# resume does not, the assertion is rewritten as explicitly conditional.
+_STATUS_TOPICS = [
+    (re.compile(r"\bNCLEX[- ]RN passed\b|\bpassed (?:the )?NCLEX\b", re.I), ("nclex",)),
+    (re.compile(r"\b(?:RN |state |nursing )?license application submitted\b", re.I), ("license", "licensure", "licensed")),
+    (re.compile(r"\bactive (?:RN |state |unrestricted |registered nurse )?license\b", re.I), ("license", "licensure", "licensed")),
+    (re.compile(r"\bauthorized to work\b", re.I), ("authorized to work", "work authorization", "green card", "ead", "citizen", "permanent resident")),
+    (re.compile(r"\bOPT (?:valid|active|until|through|expires)\b", re.I), ("opt",)),
+    (re.compile(r"\bH-?1B\b", re.I), ("h-1b", "h1b")),
+    (re.compile(r"\b(ACLS|BLS|CCRN|NIHSS|PALS|TNCC)\s*\(\s*exp", re.I), ()),
+]
+
+# Past-tense achievement/activity verbs. In a copy-ready rewrite clause such a
+# verb asserts the candidate actually did the thing; if the resume shows no
+# evidence of it, the whole clause is made explicitly conditional instead of
+# standing as an invented fact.
+_ACTIVITY = re.compile(
+    r"\b(achieved|built|cut|delivered|designed|earned|improved|increased|launched|"
+    r"led|managed|mentored|precepted|reduced|saved|trained|won)\b", re.I)
+_ACTIVITY_STEMS = {
+    "achieved": ("achiev",), "built": ("built", "build"), "cut": ("cut",),
+    "delivered": ("deliver",), "designed": ("design",), "earned": ("earn",),
+    "improved": ("improv",), "increased": ("increas",), "launched": ("launch",),
+    "led": ("led", "lead", "leading"), "managed": ("manag",),
+    "mentored": ("mentor", "train"), "precepted": ("precept", "train", "mentor"),
+    "reduced": ("reduc",), "saved": ("sav",), "trained": ("train", "mentor"),
+    "won": ("won", "win"),
+}
+_CONDITIONAL_PREFIX = "If this reflects your real experience: "
+
+
+def _conditionalize_unsupported(text: str, resume: str, key: str | None, fixes: list) -> str:
+    src = resume.lower()
+    for rx, evidence in _STATUS_TOPICS:
+        m = rx.search(text)
+        if not m:
+            continue
+        topics = evidence or (m.group(1).lower(),) if m.lastindex else evidence
+        if any(t in src for t in topics):
+            continue
+        fixes.append("unsupported-status:" + m.group(0)[:40])
+        text = rx.sub(lambda mm: mm.group(0) + " (include only if true for you)", text)
+    if "[" in text or key in ("after", "strengths"):
+        for m in _ACTIVITY.finditer(text):
+            stems = _ACTIVITY_STEMS.get(m.group(1).lower(), ())
+            if stems and not any(st in src for st in stems):
+                fixes.append("unsupported-activity:" + m.group(0)[:40])
+                if not text.startswith(_CONDITIONAL_PREFIX):
+                    text = _CONDITIONAL_PREFIX + text
+                break
+    return text
+
+
+def sanitize_with_source(value, source: str, fixes: list | None = None,
+                         requirement_source: str | None = None,
+                         requirement_keys=(), _key: str | None = None):
+    """sanitize() plus source attribution scrubbing.
+
+    ``source`` is the candidate's resume: the only evidence allowed for
+    candidate-claim text. Keys named in ``requirement_keys`` (e.g. a match
+    report's missing_keywords / gap fields) quote the job's requirements, so
+    numbers there may be attributed to ``requirement_source`` (the JD) and are
+    preserved as requirements, never treated as candidate achievements.
+    """
     if fixes is None:
         fixes = []
     if isinstance(value, str):
         out, f = _scrub(value)
         fixes.extend(f)
-        out = _scrub_invented_metrics(out, source, fixes)
+        attr_source = source
+        if requirement_source and _key in requirement_keys:
+            attr_source = source + "\n" + requirement_source
+        out = _scrub_invented_metrics(out, attr_source, fixes)
+        out = _conditionalize_unsupported(out, source, _key, fixes)
         return out
     if isinstance(value, list):
-        return [sanitize_with_source(v, source, fixes) for v in value]
+        return [sanitize_with_source(v, source, fixes, requirement_source,
+                                     requirement_keys, _key) for v in value]
     if isinstance(value, dict):
-        return {k: sanitize_with_source(v, source, fixes) for k, v in value.items()}
+        return {k: sanitize_with_source(v, source, fixes, requirement_source,
+                                        requirement_keys, k) for k, v in value.items()}
     return value

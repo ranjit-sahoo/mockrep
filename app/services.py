@@ -80,7 +80,10 @@ def review_resume(resume: str, role: str, jd: str = "", country: str = "US"):
 def match_jd(resume: str, role: str, jd: str, country: str = "US"):
     out = llm.chat_json("match", _sys(prompts.MATCH_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL)
     fixes: list = []
-    out = factuality.sanitize_with_source(out, resume, fixes)
+    out = factuality.sanitize_with_source(
+        out, resume, fixes,
+        requirement_source=jd,
+        requirement_keys=("missing_keywords", "gap"))
     if fixes:
         log.info("factuality scrub on match: %s", fixes)
     return out

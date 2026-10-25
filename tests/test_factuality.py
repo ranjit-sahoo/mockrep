@@ -163,3 +163,66 @@ def test_avg_handle_time_maps_to_aht_synonym():
     out = factuality.sanitize_with_source(
         {"after": "kept 6.5 average handle time"}, "AHT 6.5 minutes vs 8 target.")
     assert "6.5 average handle time" in out["after"]
+
+
+NURSE = ("Anita Das, ICU Nurse, Bhubaneswar. 6 years in a 20-bed ICU. "
+         "Administer medications and monitor vital signs. B.Sc. Nursing, Utkal University, 2018.")
+JD = ("Requirements: must maintain 90% CSAT and 80% first-call resolution. "
+      "Meet weekly QA scores of 85% or above. Average handle time under 7 minutes.")
+
+
+def test_false_pass_state_conditionalized():
+    # Resume has no NCLEX: copy-ready "NCLEX-RN passed" must not stand as fact
+    out = factuality.sanitize_with_source(
+        {"fix": "If you have not yet applied, write 'NCLEX-RN passed [date] - [State] RN license application submitted [date]'"},
+        NURSE)
+    fix = out["fix"]
+    assert "only if true for you" in fix
+    assert "'NCLEX-RN passed [date]'" not in fix  # bare copy-ready assertion defused
+
+
+def test_false_application_state_conditionalized():
+    out = factuality.sanitize_with_source(
+        {"fix": "write 'CGFNS CES report completed [date]'"}, NURSE)
+    # 'completed' is not a tracked status topic, but check no crash and text intact
+    assert "CGFNS CES report completed" in out["fix"]
+
+
+def test_screen_out_ranking_hedged():
+    fixes = []
+    out = factuality.sanitize("This is the first screen-out factor", fixes)
+    assert "first screen-out factor" not in out
+    assert "common early screening question" in out
+
+
+def test_jd_threshold_preserved_as_requirement():
+    # missing_keywords quotes the JD: the JD's 85% must stay verbatim
+    out = factuality.sanitize_with_source(
+        {"missing_keywords": ["weekly QA scores of 85%"]}, RESUME,
+        requirement_source=JD, requirement_keys=("missing_keywords", "gap"))
+    assert "85%" in out["missing_keywords"][0]
+
+
+def test_jd_threshold_not_claimed_as_achievement():
+    # the same 85% in a tailored rewrite is a candidate claim: not resume-backed
+    out = factuality.sanitize_with_source(
+        {"tailored_bullets": [{"before": "x", "after": "Maintained 85% QA scores weekly"}]}, RESUME,
+        requirement_source=JD, requirement_keys=("missing_keywords", "gap"))
+    assert "85%" not in out["tailored_bullets"][0]["after"]
+
+
+def test_unsupported_activity_conditionalized():
+    out = factuality.sanitize_with_source({"after": "Led a team of [add number] nurses"}, NURSE)
+    assert out["after"].startswith("If this reflects your real experience:")
+
+
+def test_supported_activity_kept():
+    out = factuality.sanitize_with_source(
+        {"after": "Trained [add your number - only if you know it] new hires on process workflows"}, RESUME)
+    assert out["after"].startswith("Trained")
+
+
+def test_cert_with_expiry_conditionalized():
+    out = factuality.sanitize_with_source(
+        {"fix": "write 'AHA ACLS (exp. [date])'"}, NURSE)
+    assert "only if true for you" in out["fix"]
