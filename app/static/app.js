@@ -331,7 +331,12 @@ const ANDROID=/Android/i.test(navigator.userAgent||'');
 let wantMic=false,micFinal='',micRetries=0,micGot=false;
 const micMsg=e=>e==='not-allowed'||e==='service-not-allowed'?'Microphone is blocked. Tap the lock icon in the address bar, allow Microphone, then try again. Or switch to Type.':e==='no-speech'?'I did not hear anything. Tap Start speaking, wait for Listening, then speak a little louder, close to the phone.':e==='audio-capture'?'The microphone is busy or not found. Close other apps that use the mic (calls, recorders) and try again.':e==='network'?'Voice needs internet. Check your connection and try again.':'Mic problem ('+e+'). You can type instead.';
 function micSet(html){$('micState').innerHTML=html}
-function startMic(){if(!SR||listening)return;wantMic=true;micFinal='';micRetries=0;micGot=false;baseText=$('ans').value.trim();if(voice&&!ANDROID)recStart();beginRec()}
+function startMic(){if(!SR||listening)return;
+  const go=()=>{wantMic=true;micFinal='';micRetries=0;micGot=false;baseText=$('ans').value.trim();if(voice&&!ANDROID)recStart();beginRec()};
+  if(navigator.mediaDevices&&navigator.mediaDevices.enumerateDevices){
+    navigator.mediaDevices.enumerateDevices().then(ds=>{if(ds.length&&!ds.some(d=>d.kind==='audioinput')){micSet('No microphone found on this device. You can type your answer instead.');return}go()}).catch(()=>go());
+    return}
+  go()}
 function beginRec(){
   rec=new SR();rec.lang=prefs.accent||'en-US';rec.continuous=!ANDROID;rec.interimResults=true;rec.maxAlternatives=1;
   let err='';
