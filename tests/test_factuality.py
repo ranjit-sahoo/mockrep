@@ -70,3 +70,9 @@ def test_structure_and_types_preserved():
 def test_watch_phrases_flagged():
     _, fixes = scrub("Without this you are never hired.")
     assert any(f.startswith("WATCH:") for f in fixes)
+
+
+def test_outcome_certainty_softened():
+    out, _ = scrub("With no timeline, no numbers, and no license, it will not pass an initial screen.")
+    assert "will not pass" not in out
+    assert "may not pass" in out

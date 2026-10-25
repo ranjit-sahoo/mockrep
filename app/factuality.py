@@ -28,6 +28,7 @@ _RULES = [
     (re.compile(r"\bguarantee[sd]?\b", re.I), "may improve the odds of"),
     (re.compile(r"=\s*lower ranking", re.I), "which can lower ranking"),
     (re.compile(r"\bwill be (?:rejected|filtered out|screened out)\b", re.I), "may be filtered out"),
+    (re.compile(r"\bwill not (?:pass|get|clear)\b", re.I), "may not pass"),
 ]
 
 # Sentences containing a banned phrase that survived replacement (paraphrases
