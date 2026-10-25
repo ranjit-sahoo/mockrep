@@ -84,15 +84,36 @@ _METRIC = re.compile(
 _PLACEHOLDER = "[add your number - only if you know it]"
 
 
+_WINDOW = 60
+
+
+def _attributed(num: str, unit: str, source: str) -> bool:
+    """True only if the resume itself pairs this number with this metric.
+
+    The JD is not evidence of candidate achievement, and an unrelated number
+    elsewhere in the resume is not either: require the number within _WINDOW
+    chars of one of the metric's keywords in the source text.
+    """
+    keywords = [w for w in re.findall(r"[a-z][a-z-]{2,}", unit.lower())
+                if w not in ("percent", "per", "rate", "new")]
+    synonyms = {"hires": ("joiners",), "joiners": ("hires",)}
+    keywords = keywords + [s for k in keywords for s in synonyms.get(k, ())]
+    if not keywords:
+        return False
+    src = source.lower()
+    num_rx = re.compile(r"(?<![0-9.])" + re.escape(num) + r"\+?(?![0-9.])")
+    for kw in keywords:
+        for km in re.finditer(re.escape(kw), src):
+            lo, hi = max(0, km.start() - _WINDOW), km.end() + _WINDOW
+            if num_rx.search(src, lo, hi):
+                return True
+    return False
+
+
 def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
-    src_digits = re.sub(r"[^0-9.]", " ", source)
-
-    def _in_source(num: str) -> bool:
-        return re.search(r"(?<![0-9.])" + re.escape(num) + r"(?![0-9.])", src_digits) is not None
-
     def _sub(m: re.Match) -> str:
         num = m.group("num")
-        if _in_source(num.rstrip("+")):
+        if _attributed(num.rstrip("+"), m.group("unit"), source):
             return m.group(0)
         fixes.append("invented-metric:" + m.group(0)[:40])
         return _PLACEHOLDER + m.group("unit")

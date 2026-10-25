@@ -105,3 +105,23 @@ def scrub_with(text, source):
     fixes = []
     out = factuality.sanitize_with_source(text, source, fixes)
     return out, fixes
+
+
+def test_jd_requirement_not_attributed_as_achievement():
+    # JD states a target; candidate resume never mentions it.
+    out, fixes = scrub_with("Maintained 90% CSAT for the account.", "Handled calls for a telecom client.")
+    assert "90% CSAT" not in out
+    assert any(f.startswith("invented-metric:") for f in fixes)
+
+
+def test_unrelated_resume_number_not_attributed():
+    # Resume has 60 for calls/day; output reuses 60 as an FCR claim.
+    out, fixes = scrub_with("Achieved 60% FCR on billing calls.", RESUME)
+    assert "60% FCR" not in out
+    assert any(f.startswith("invented-metric:") for f in fixes)
+
+
+def test_keyword_proximity_attribution_kept():
+    out, fixes = scrub_with("Kept CSAT at 92% across the year.", RESUME)
+    assert "92%" in out
+    assert not [f for f in fixes if f.startswith("invented-metric:")]

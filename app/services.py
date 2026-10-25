@@ -71,7 +71,7 @@ def review_resume(resume: str, role: str, jd: str = "", country: str = "US"):
         "resume_review", _sys(prompts.RESUME_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL
     )
     fixes: list = []
-    out = factuality.sanitize_with_source(out, resume + "\n" + jd, fixes)
+    out = factuality.sanitize_with_source(out, resume, fixes)
     if fixes:
         log.info("factuality scrub on resume_review: %s", fixes)
     return out
@@ -80,7 +80,7 @@ def review_resume(resume: str, role: str, jd: str = "", country: str = "US"):
 def match_jd(resume: str, role: str, jd: str, country: str = "US"):
     out = llm.chat_json("match", _sys(prompts.MATCH_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL)
     fixes: list = []
-    out = factuality.sanitize_with_source(out, resume + "\n" + jd, fixes)
+    out = factuality.sanitize_with_source(out, resume, fixes)
     if fixes:
         log.info("factuality scrub on match: %s", fixes)
     return out
