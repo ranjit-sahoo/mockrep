@@ -22,7 +22,7 @@ def test_legally_require_hedged():
 def test_employers_cannot_hedged():
     out, _ = scrub("Employers cannot consider candidates without it.")
     assert "employers cannot" not in out.lower()
-    assert "not all employers will" in out
+    assert "employers may not always" in out
 
 
 def test_causal_certainty_softened():
@@ -226,3 +226,24 @@ def test_cert_with_expiry_conditionalized():
     out = factuality.sanitize_with_source(
         {"fix": "write 'AHA ACLS (exp. [date])'"}, NURSE)
     assert "only if true for you" in out["fix"]
+
+
+def test_fallback_invented_specifics():
+    out = factuality.sanitize_with_source(
+        {"after": "Cared for 2 critically ill patients per shift (1:2 ratio); maintained 100% medication-safety compliance"}, NURSE)
+    after = out["after"]
+    assert "2 critically" not in after and "1:2" not in after and "100%" not in after
+    assert after.count("[add your number - only if you know it]") >= 3
+
+
+def test_fallback_preserves_real_facts():
+    out = factuality.sanitize_with_source(
+        {"after": "ICU RN with 6 years in a 20-bed unit"}, NURSE)
+    assert "6 years" in out["after"] and "20-bed" in out["after"]
+
+
+def test_fallback_req_cue_uses_jd():
+    out = factuality.sanitize_with_source(
+        {"fix": "Add your actual CSAT against the JD's 90% CSAT target"}, RESUME,
+        requirement_source=JD)
+    assert "90%" in out["fix"]

@@ -15,7 +15,7 @@ import re
 _RULES = [
     # Blanket legal/licensing assertions stated as fact.
     (re.compile(r"\blegally (?:require[sd]?|mandate[sd]?)\b", re.I), "commonly ask for"),
-    (re.compile(r"\bemployers cannot\b", re.I), "not all employers will"),
+    (re.compile(r"\bemployers cannot\b", re.I), "employers may not always"),
     (re.compile(r"\bcannot (?:consider|interview|hire|advance)\b", re.I), "may not always consider"),
     (re.compile(r"\bwill not (?:advance|consider|interview|hire)\b", re.I), "may not advance"),
     (re.compile(r"\bmandatory\b", re.I), "often requested"),
@@ -32,6 +32,9 @@ _RULES = [
     # Unsupported ranking certainty about screening.
     (re.compile(r"\bthe first screen-out factor\b", re.I), "a common early screening question"),
     (re.compile(r"\bthe (?:number one|#1|top) (?:screen-out|dealbreaker|deal-breaker)\b", re.I), "a common screening concern"),
+    (re.compile(r"\bleads? to (?:immediate |automatic )?screen-?out\b", re.I), "can hurt the application"),
+    (re.compile(r"\b(?:universally|always) require[sd]?\b", re.I), "commonly ask for"),
+    (re.compile(r"\bimmediate screen-?out\b", re.I), "being set aside"),
 ]
 
 # Sentences containing a banned phrase that survived replacement (paraphrases
@@ -149,6 +152,59 @@ def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
     return text
 
 
+# General fallback: ANY concrete number in the output must be attributable to
+# the source (the resume; plus the JD when the string frames the number as the
+# job's requirement/target). A number is attributed when it appears in the
+# source within 60 chars of a content word that also neighbors it in the
+# output. This catches invented specifics in copy-ready text regardless of
+# which metric vocabulary they use ("Cared for 2 critically ill patients",
+# "100% medication-safety compliance", "1:2 ratio").
+_NUMBER = re.compile(r"(?<![0-9.])(?P<num>\d+(?:[.:]\d+)?)(?![0-9.])")
+_REQ_CUE = re.compile(
+    r"\b(?:target|requirement|required|requires|threshold|job description|JD|"
+    r"asks? for|must maintain|the role expects|the posting)\b", re.I)
+_STOP = set("""the and for with your you only true add know per than over under around about
+from this that each every any all not are was were have has had will would can could should
+may might must our their its his her who what when where how why into onto upon within
+without between across after before during while through both such same more most less
+least much many few several other another also just even still yet already very too
+include including includes included write example known number shift shifts day days
+year years month months hour hours minute minutes""".split())
+
+
+_SYNONYMS = {"hires": ("joiners",), "joiners": ("hires",),
+             "handle": ("aht",), "resolution": ("fcr",), "first-call": ("fcr",)}
+
+
+def _number_attributed(num: str, text: str, pos: int, source: str) -> bool:
+    lo = max(0, pos - 40)
+    ctx = [w for w in re.findall(r"[a-z][a-z-]{2,}", text[lo:pos + len(num) + 40].lower())
+           if w not in _STOP]
+    ctx = ctx + [syn for w in ctx for syn in _SYNONYMS.get(w, ())]
+    src = source.lower()
+    num_rx = re.compile(r"(?<![0-9.])" + re.escape(num) + r"\+?(?![0-9.])")
+    for nm in num_rx.finditer(src):
+        window = src[max(0, nm.start() - 60):nm.end() + 60]
+        if any(w in window for w in ctx):
+            return True
+    return False
+
+
+def _scrub_unattributed_numbers(text: str, resume: str, requirement_source: str | None,
+                                attr_source: str, fixes: list) -> str:
+    source = attr_source
+
+    def repl(m: re.Match) -> str:
+        if m.start() > 0 and text[m.start() - 1] in "vV":
+            return m.group(0)  # version numbers (ITIL v4)
+        if _number_attributed(m.group("num"), text, m.start(), source):
+            return m.group(0)
+        fixes.append("unattributed-number:" + m.group(0)[:40])
+        return _PLACEHOLDER
+
+    return _NUMBER.sub(repl, text)
+
+
 # Credential / legal-status assertions that must never be presented as
 # copy-ready fact unless the resume itself evidences the topic. When the
 # resume does not, the assertion is rewritten as explicitly conditional.
@@ -220,9 +276,10 @@ def sanitize_with_source(value, source: str, fixes: list | None = None,
         out, f = _scrub(value)
         fixes.extend(f)
         attr_source = source
-        if requirement_source and _key in requirement_keys:
+        if requirement_source and (_key in requirement_keys or _REQ_CUE.search(out)):
             attr_source = source + "\n" + requirement_source
         out = _scrub_invented_metrics(out, attr_source, fixes)
+        out = _scrub_unattributed_numbers(out, source, requirement_source, attr_source, fixes)
         out = _conditionalize_unsupported(out, source, _key, fixes)
         return out
     if isinstance(value, list):
