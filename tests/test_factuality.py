@@ -327,3 +327,20 @@ def test_scrub_invented_tools_sentence_initial_capital_safe():
         "Resolve billing and technical issues for a US telecom client", [])
     assert out.startswith("Resolved billing issues")
     assert "US" in out
+
+
+def test_polish_outcome_clause_is_whole_conditional():
+    out = factuality.scrub_invented_tools(
+        "Handled inbound calls, achieving [X%] first-call resolution",
+        "Handled inbound calls", [])
+    out = factuality.sanitize_with_source(out, "Handled inbound calls", [])
+    assert "only if true" in out
+    assert out.startswith(factuality._CONDITIONAL_PREFIX)
+    assert "Handled inbound calls" in out
+
+
+def test_supported_ing_activity_not_conditionalized():
+    out = factuality.sanitize_with_source(
+        "Handled inbound calls, improving first-call resolution",
+        "Handled inbound calls and improved first-call resolution", [])
+    assert not out.startswith(factuality._CONDITIONAL_PREFIX)

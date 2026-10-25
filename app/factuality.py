@@ -234,16 +234,28 @@ _STATUS_TOPICS = [
 # evidence of it, the whole clause is made explicitly conditional instead of
 # standing as an invented fact.
 _ACTIVITY = re.compile(
-    r"\b(achieved|built|cut|delivered|designed|earned|improved|increased|launched|"
-    r"led|managed|mentored|precepted|reduced|saved|trained|won)\b", re.I)
+    r"\b(achieved|achieving|built|building|cut|cutting|delivered|delivering|"
+    r"designed|designing|earned|earning|improved|improving|increased|increasing|"
+    r"launched|launching|led|leading|managed|managing|mentored|mentoring|"
+    r"precepted|precepting|reduced|reducing|saved|saving|trained|training|won|winning)\b", re.I)
 _ACTIVITY_STEMS = {
-    "achieved": ("achiev",), "built": ("built", "build"), "cut": ("cut",),
-    "delivered": ("deliver",), "designed": ("design",), "earned": ("earn",),
-    "improved": ("improv",), "increased": ("increas",), "launched": ("launch",),
-    "led": ("led", "lead", "leading"), "managed": ("manag",),
-    "mentored": ("mentor", "train"), "precepted": ("precept", "train", "mentor"),
-    "reduced": ("reduc",), "saved": ("sav",), "trained": ("train", "mentor"),
-    "won": ("won", "win"),
+    "achieved": ("achiev",), "achieving": ("achiev",),
+    "built": ("built", "build"), "building": ("built", "build"),
+    "cut": ("cut",), "cutting": ("cut",),
+    "delivered": ("deliver",), "delivering": ("deliver",),
+    "designed": ("design",), "designing": ("design",),
+    "earned": ("earn",), "earning": ("earn",),
+    "improved": ("improv",), "improving": ("improv",),
+    "increased": ("increas",), "increasing": ("increas",),
+    "launched": ("launch",), "launching": ("launch",),
+    "led": ("led", "lead", "leading"), "leading": ("led", "lead", "leading"),
+    "managed": ("manag",), "managing": ("manag",),
+    "mentored": ("mentor", "train"), "mentoring": ("mentor", "train"),
+    "precepted": ("precept", "train", "mentor"), "precepting": ("precept", "train", "mentor"),
+    "reduced": ("reduc",), "reducing": ("reduc",),
+    "saved": ("sav",), "saving": ("sav",),
+    "trained": ("train", "mentor"), "training": ("train", "mentor"),
+    "won": ("won", "win"), "winning": ("won", "win"),
 }
 _CONDITIONAL_PREFIX = "If this reflects your real experience: "
 
@@ -266,6 +278,7 @@ def _conditionalize_unsupported(text: str, resume: str, key: str | None, fixes: 
             continue
         fixes.append("unsupported-status:" + m.group(0)[:40])
         text = rx.sub(lambda mm: mm.group(0) + " (include only if true for you)", text)
+    text = re.sub(r"\[([Xx][^\]\-]{0,25}?)\]", r"[\1 - only if true]", text)
     if "[" in text or key in ("after", "strengths"):
         for m in _ACTIVITY.finditer(text):
             stems = _ACTIVITY_STEMS.get(m.group(1).lower(), ())
