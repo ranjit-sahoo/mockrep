@@ -36,6 +36,8 @@ _RULES = [
     (re.compile(r"\bleads? to (?:immediate |automatic )?screen-?out\b", re.I), "can hurt the application"),
     (re.compile(r"\b(?:universally|always) require[sd]?\b", re.I), "commonly ask for"),
     (re.compile(r"\bimmediate screen-?out\b", re.I), "being set aside"),
+    (re.compile(r"\bis screened out automatically\b", re.I), "may be set aside"),
+    (re.compile(r"\bcauses? immediate rejection\b", re.I), "can hurt the application"),
 ]
 
 # Sentences containing a banned phrase that survived replacement (paraphrases
@@ -198,6 +200,8 @@ def _scrub_unattributed_numbers(text: str, resume: str, requirement_source: str 
     def repl(m: re.Match) -> str:
         if m.start() > 0 and text[m.start() - 1] in "vV":
             return m.group(0)  # version numbers (ITIL v4)
+        if m.start() > 1 and text[m.start() - 1] == "-" and text[m.start() - 2].isalpha():
+            return m.group(0)  # token-suffixed numerals: visa categories (EB-3), etc.
         if _number_attributed(m.group("num"), text, m.start(), source):
             return m.group(0)
         fixes.append("unattributed-number:" + m.group(0)[:40])

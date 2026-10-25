@@ -260,3 +260,21 @@ def test_will_auto_reject_grammar():
     out = factuality.sanitize("ATS will auto-reject or deprioritize", fixes)
     assert "will rejection" not in out
     assert "may deprioritize" in out
+
+
+def test_eb3_not_mangled():
+    out = factuality.sanitize_with_source(
+        {"fix": "sponsorship needs (H-1B, TN, EB-3, OPT) - only if true"}, NURSE)
+    assert "EB-3" in out["fix"] and "H-1B" in out["fix"]
+
+
+def test_screened_out_automatically_hedged():
+    fixes = []
+    out = factuality.sanitize("the application is screened out automatically", fixes)
+    assert "screened out automatically" not in out
+
+
+def test_causes_immediate_rejection_hedged():
+    fixes = []
+    out = factuality.sanitize("Absence of this causes immediate rejection or delay", fixes)
+    assert "immediate rejection" not in out
