@@ -38,6 +38,9 @@ _RULES = [
     (re.compile(r"\bimmediate screen-?out\b", re.I), "being set aside"),
     (re.compile(r"\bis screened out automatically\b", re.I), "may be set aside"),
     (re.compile(r"\bcauses? immediate rejection\b", re.I), "can hurt the application"),
+    (re.compile(r"\bcannot pass\b", re.I), "may not pass"),
+    (re.compile(r"\bno (NCLEX[- ]RN pass|state RN license|US work authorization|RN license|license/NCLEX status)\b", re.I),
+     r"no \1 stated in the resume"),
 ]
 
 # Sentences containing a banned phrase that survived replacement (paraphrases
@@ -221,6 +224,8 @@ _STATUS_TOPICS = [
     (re.compile(r"\bOPT (?:valid|active|until|through|expires)\b", re.I), ("opt",)),
     (re.compile(r"\bH-?1B\b", re.I), ("h-1b", "h1b")),
     (re.compile(r"\b(ACLS|BLS|CCRN|NIHSS|PALS|TNCC)\s*\(\s*exp", re.I), ()),
+    (re.compile(r"\bNCLEX[- ]RN scheduled\b", re.I), ("nclex",)),
+    (re.compile(r"\bCGFNS (?:CES )?report submitted\b", re.I), ("cgfns",)),
 ]
 
 # Past-tense achievement/activity verbs. In a copy-ready rewrite clause such a
@@ -240,6 +245,13 @@ _ACTIVITY_STEMS = {
     "won": ("won", "win"),
 }
 _CONDITIONAL_PREFIX = "If this reflects your real experience: "
+
+# Fields whose values are claims about the candidate (rewrite clauses,
+# strengths, summaries) and therefore need full source attribution. Other
+# fields are advice prose: only quoted copy-ready segments inside them are
+# claim contexts.
+_ADVICE_KEYS = {"issue", "why_it_hurts", "fix"}
+_QUOTED = re.compile(r"'[^'\n]{10,}'" + '|' + r'"[^"\n]{10,}"')
 
 
 def _conditionalize_unsupported(text: str, resume: str, key: str | None, fixes: list) -> str:
@@ -280,12 +292,26 @@ def sanitize_with_source(value, source: str, fixes: list | None = None,
     if isinstance(value, str):
         out, f = _scrub(value)
         fixes.extend(f)
-        attr_source = source
-        if requirement_source and (_key in requirement_keys or _REQ_CUE.search(out)):
-            attr_source = source + "\n" + requirement_source
-        out = _scrub_invented_metrics(out, attr_source, fixes)
-        out = _scrub_unattributed_numbers(out, source, requirement_source, attr_source, fixes)
-        out = _conditionalize_unsupported(out, source, _key, fixes)
+        if requirement_source and _key in requirement_keys:
+            # Requirement quotes: whole string, JD is valid evidence.
+            attr = source + "\n" + requirement_source
+            out = _scrub_invented_metrics(out, attr, fixes)
+            out = _scrub_unattributed_numbers(out, source, requirement_source, attr, fixes)
+        elif _key in _ADVICE_KEYS:
+            # Advice prose: leave general guidance numbers ("a 6-second scan",
+            # "add 2-3 metrics") alone; only quoted copy-ready segments are
+            # claim contexts and get full scrubbing.
+            def _scrub_quote(m: re.Match) -> str:
+                q = _scrub_invented_metrics(m.group(0), source, fixes)
+                q = _scrub_unattributed_numbers(q, source, requirement_source, source, fixes)
+                return _conditionalize_unsupported(q, source, _key, fixes)
+            out = _QUOTED.sub(_scrub_quote, out)
+        else:
+            # Candidate-claim fields (and unknown-key strings): whole string,
+            # resume is the only evidence.
+            out = _scrub_invented_metrics(out, source, fixes)
+            out = _scrub_unattributed_numbers(out, source, requirement_source, source, fixes)
+            out = _conditionalize_unsupported(out, source, _key, fixes)
         return out
     if isinstance(value, list):
         return [sanitize_with_source(v, source, fixes, requirement_source,

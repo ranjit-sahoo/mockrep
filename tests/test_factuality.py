@@ -139,16 +139,16 @@ def test_space_hyphen_variant_first_call_resolution():
 
 def test_number_then_keyword_within_words():
     out = factuality.sanitize_with_source(
-        {"fix": "Consistently scored 88%+ on weekly QA audits"}, RESUME)
-    assert "88" not in out["fix"]
-    assert "[add your number - only if you know it]" in out["fix"]
+        {"after": "Consistently scored 88%+ on weekly QA audits"}, RESUME)
+    assert "88" not in out["after"]
+    assert "[add your number - only if you know it]" in out["after"]
 
 
 def test_keyword_first_then_number():
     out = factuality.sanitize_with_source(
-        {"fix": "reducing ramp-up time by 20% through root-cause documentation"}, RESUME)
-    assert "20%" not in out["fix"]
-    assert "ramp-up time" in out["fix"]  # sentence structure preserved
+        {"after": "reducing ramp-up time by 20% through root-cause documentation"}, RESUME)
+    assert "20%" not in out["after"]
+    assert "ramp-up time" in out["after"]  # sentence structure preserved
 
 
 def test_hyphenated_minute_unit_attributed():
@@ -209,6 +209,21 @@ def test_jd_threshold_not_claimed_as_achievement():
         {"tailored_bullets": [{"before": "x", "after": "Maintained 85% QA scores weekly"}]}, RESUME,
         requirement_source=JD, requirement_keys=("missing_keywords", "gap"))
     assert "85%" not in out["tailored_bullets"][0]["after"]
+
+
+def test_advice_prose_numbers_untouched():
+    # general guidance numbers are not candidate facts: no broken placeholders
+    out = factuality.sanitize_with_source(
+        {"why_it_hurts": "recruiters spend a 6-second scan per resume",
+         "fix": "Add 2-3 metrics per role from your actual performance data"}, RESUME)
+    assert "6-second scan" in out["why_it_hurts"]
+    assert "2-3 metrics" in out["fix"]
+
+
+def test_quoted_example_in_advice_still_scrubbed():
+    out = factuality.sanitize_with_source(
+        {"fix": "Convert each bullet, e.g., 'Resolved issues, maintaining 85% first-call resolution'"}, RESUME)
+    assert "85%" not in out["fix"]
 
 
 def test_unsupported_activity_conditionalized():
