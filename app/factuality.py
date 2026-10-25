@@ -70,3 +70,47 @@ def sanitize(value, fixes: list | None = None):
     if isinstance(value, dict):
         return {k: sanitize(v, fixes) for k, v in value.items()}
     return value
+
+
+# Metric-claim detector: a concrete number tied to a performance metric. If the
+# exact number does not appear anywhere in the candidate's own resume or the
+# job description, the model invented it; replace the number (and only the
+# number) with a conditional placeholder, keeping the sentence structure.
+_METRIC = re.compile(
+    r"(?P<num>\d+(?:\.\d+)?\+?)(?P<unit>\s*(?:%|percent)\s*(?:CSAT|FCR|QA|AHT|SLA|accuracy|save rate|retention|pass rate|first-call-resolution)[\w-]*"
+    r"|\s*(?:CSAT|FCR|QA|AHT|SLA|WPM|NPS)"
+    r"|\s*(?:new hires|calls/day|calls per day|patients|beds|students|joiners)\b)",
+    re.I)
+_PLACEHOLDER = "[add your number - only if you know it]"
+
+
+def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
+    src_digits = re.sub(r"[^0-9.]", " ", source)
+
+    def _in_source(num: str) -> bool:
+        return re.search(r"(?<![0-9.])" + re.escape(num) + r"(?![0-9.])", src_digits) is not None
+
+    def _sub(m: re.Match) -> str:
+        num = m.group("num")
+        if _in_source(num.rstrip("+")):
+            return m.group(0)
+        fixes.append("invented-metric:" + m.group(0)[:40])
+        return _PLACEHOLDER + m.group("unit")
+
+    return _METRIC.sub(_sub, text)
+
+
+def sanitize_with_source(value, source: str, fixes: list | None = None):
+    """sanitize() plus invented-metric scrubbing against the source documents."""
+    if fixes is None:
+        fixes = []
+    if isinstance(value, str):
+        out, f = _scrub(value)
+        fixes.extend(f)
+        out = _scrub_invented_metrics(out, source, fixes)
+        return out
+    if isinstance(value, list):
+        return [sanitize_with_source(v, source, fixes) for v in value]
+    if isinstance(value, dict):
+        return {k: sanitize_with_source(v, source, fixes) for k, v in value.items()}
+    return value

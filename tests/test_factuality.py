@@ -76,3 +76,32 @@ def test_outcome_certainty_softened():
     out, _ = scrub("With no timeline, no numbers, and no license, it will not pass an initial screen.")
     assert "will not pass" not in out
     assert "may not pass" in out
+
+
+RESUME = ("Handled 60+ calls/day for a US telecom client, average CSAT 92%. "
+          "Resolved billing disputes, AHT 6.5 minutes vs 8 target. Trained 5 new joiners.")
+
+
+def test_invented_metric_replaced_with_placeholder():
+    out, fixes = scrub_with("Consistently hit 90+ CSAT & 85% FCR; trained 15+ new hires.", RESUME)
+    assert "90+" not in out and "85%" not in out and "15+" not in out
+    assert "[add your number - only if you know it]" in out
+    assert fixes
+
+
+def test_source_backed_metrics_preserved():
+    out, fixes = scrub_with("Maintained 92% CSAT and 6.5-minute AHT, handled 60+ calls/day, trained 5 new hires.", RESUME)
+    assert "92% CSAT" in out and "60+ calls/day" in out and "5 new hires" in out
+    assert not [f for f in fixes if f.startswith("invented-metric:")]
+
+
+def test_number_in_different_context_still_flagged():
+    out, fixes = scrub_with("Achieved 18% retention-save rate.", RESUME)
+    assert "18%" not in out
+    assert any(f.startswith("invented-metric:") for f in fixes)
+
+
+def scrub_with(text, source):
+    fixes = []
+    out = factuality.sanitize_with_source(text, source, fixes)
+    return out, fixes
