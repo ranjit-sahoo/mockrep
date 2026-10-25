@@ -330,6 +330,15 @@ def scrub_invented_tools(text: str, source: str, fixes: list | None = None) -> s
     return out
 
 
+def ensure_conditional(text: str) -> str:
+    """A claim string that carries a fill-in placeholder is a template, not a
+    fact: mark the whole clause conditional, whatever verb it uses. Bounded
+    alternative to enumerating achievement verbs."""
+    if isinstance(text, str) and "[" in text and not text.startswith(_CONDITIONAL_PREFIX):
+        return _CONDITIONAL_PREFIX + text
+    return text
+
+
 def sanitize_with_source(value, source: str, fixes: list | None = None,
                          requirement_source: str | None = None,
                          requirement_keys=(), _key: str | None = None):

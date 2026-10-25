@@ -76,6 +76,7 @@ def polish(role: str, bullets: list[str], country: str) -> list[str]:
         evidence = f"{orig}\n{role}"
         p = factuality.sanitize_with_source(polished, evidence, fixes)
         p = factuality.scrub_invented_tools(p, evidence, fixes)
+        p = factuality.ensure_conditional(p)
         clean.append(p if p and p.strip() else orig)
     return clean
 

@@ -344,3 +344,13 @@ def test_supported_ing_activity_not_conditionalized():
         "Handled inbound calls, improving first-call resolution",
         "Handled inbound calls and improved first-call resolution", [])
     assert not out.startswith(factuality._CONDITIONAL_PREFIX)
+
+
+def test_placeholder_clause_conditional_any_verb():
+    for verb in ("boosting", "maintaining", "driving"):
+        out = factuality.sanitize_with_source(
+            f"Handled inbound calls, {verb} [X%] first-call resolution",
+            "Handled inbound calls", [])
+        out = factuality.ensure_conditional(out)
+        assert out.startswith(factuality._CONDITIONAL_PREFIX), verb
+        assert "only if true" in out
