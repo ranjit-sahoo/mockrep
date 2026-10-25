@@ -125,3 +125,41 @@ def test_keyword_proximity_attribution_kept():
     out, fixes = scrub_with("Kept CSAT at 92% across the year.", RESUME)
     assert "92%" in out
     assert not [f for f in fixes if f.startswith("invented-metric:")]
+
+
+def test_space_hyphen_variant_first_call_resolution():
+    # "85% first-call resolution" (space variant) must also be caught
+    out = factuality.sanitize_with_source(
+        {"fix": "e.g. 'Maintained [x]% CSAT, 85% first-call resolution, and 6:30 avg handle time over 12 months'"},
+        RESUME)
+    fix = out["fix"]
+    assert "85%" not in fix and "6:30" not in fix
+    assert fix.count("[add your number - only if you know it]") >= 2
+
+
+def test_number_then_keyword_within_words():
+    out = factuality.sanitize_with_source(
+        {"fix": "Consistently scored 88%+ on weekly QA audits"}, RESUME)
+    assert "88" not in out["fix"]
+    assert "[add your number - only if you know it]" in out["fix"]
+
+
+def test_keyword_first_then_number():
+    out = factuality.sanitize_with_source(
+        {"fix": "reducing ramp-up time by 20% through root-cause documentation"}, RESUME)
+    assert "20%" not in out["fix"]
+    assert "ramp-up time" in out["fix"]  # sentence structure preserved
+
+
+def test_hyphenated_minute_unit_attributed():
+    # "6.5-minute AHT" in output is backed by resume's "AHT 6.5 minutes"
+    out = factuality.sanitize_with_source(
+        {"after": "Maintained 6.5-minute AHT and 92% CSAT"},
+        "average CSAT 92%. Resolved billing disputes, AHT 6.5 minutes vs 8 target.")
+    assert "6.5-minute AHT" in out["after"] and "92% CSAT" in out["after"]
+
+
+def test_avg_handle_time_maps_to_aht_synonym():
+    out = factuality.sanitize_with_source(
+        {"after": "kept 6.5 average handle time"}, "AHT 6.5 minutes vs 8 target.")
+    assert "6.5 average handle time" in out["after"]

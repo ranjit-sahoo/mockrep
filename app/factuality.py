@@ -73,14 +73,31 @@ def sanitize(value, fixes: list | None = None):
 
 
 # Metric-claim detector: a concrete number tied to a performance metric. If the
-# exact number does not appear anywhere in the candidate's own resume or the
-# job description, the model invented it; replace the number (and only the
-# number) with a conditional placeholder, keeping the sentence structure.
-_METRIC = re.compile(
-    r"(?P<num>\d+(?:\.\d+)?\+?)(?P<unit>\s*(?:%|percent)\s*(?:CSAT|FCR|QA|AHT|SLA|accuracy|save rate|retention|pass rate|first-call-resolution)[\w-]*"
-    r"|\s*(?:CSAT|FCR|QA|AHT|SLA|WPM|NPS)"
-    r"|\s*(?:new hires|calls/day|calls per day|patients|beds|students|joiners)\b)",
-    re.I)
+# resume itself does not pair that number with that metric, the model invented
+# it (or lifted it from the JD); replace the number (and only the number) with
+# a conditional placeholder, keeping the sentence structure.
+_KW = (r"(?:CSAT|FCR|QA|AHT|SLA|NPS|accuracy|retention|save rate|pass rate"
+       r"|first[- ]call[- ]resolution|handle time|ramp-up time"
+       r"|escalation rate|callback compliance)")
+_NUM = r"\d+(?:[.:]\d+)?\+?"
+_METRIC_PATTERNS = [
+    # number glued to its unit keyword: "92% CSAT", "6.5 AHT", "5 new hires"
+    re.compile(
+        rf"(?P<num>{_NUM})(?P<unit>\s*(?:%|percent)\s*{_KW}[\w-]*"
+        rf"|\s*(?:CSAT|FCR|QA|AHT|SLA|WPM|NPS)\b"
+        rf"|\s*(?:new hires|calls/day|calls per day|patients|beds|students|joiners)\b)",
+        re.I),
+    # number, keyword within a few words: "88%+ on weekly QA audits",
+    # "6:30 avg handle time", "6.5-minute AHT"
+    re.compile(
+        rf"(?P<num>{_NUM})(?P<unit>\s*(?:[%+.]\+?)?(?:[-\s]*[A-Za-z]+){{0,4}}[-\s]*{_KW}\b[\w-]*)",
+        re.I),
+    # keyword first, number after: "first-call resolution of 85%",
+    # "ramp-up time by 20%", "QA scores of 85%"
+    re.compile(
+        rf"(?P<kw>{_KW})\b(?P<unit>(?:\s+[A-Za-z-]+){{0,4}}\s*)(?P<num>{_NUM})(?P<tail>\s*(?:%|percent\b))",
+        re.I),
+]
 _PLACEHOLDER = "[add your number - only if you know it]"
 
 
@@ -95,8 +112,11 @@ def _attributed(num: str, unit: str, source: str) -> bool:
     chars of one of the metric's keywords in the source text.
     """
     keywords = [w for w in re.findall(r"[a-z][a-z-]{2,}", unit.lower())
-                if w not in ("percent", "per", "rate", "new")]
-    synonyms = {"hires": ("joiners",), "joiners": ("hires",)}
+                if w not in ("percent", "per", "rate", "new", "avg",
+                             "average", "minute", "minutes")]
+    synonyms = {"hires": ("joiners",), "joiners": ("hires",),
+                "handle": ("aht",), "resolution": ("fcr",),
+                "first-call": ("fcr",)}
     keywords = keywords + [s for k in keywords for s in synonyms.get(k, ())]
     if not keywords:
         return False
@@ -113,12 +133,17 @@ def _attributed(num: str, unit: str, source: str) -> bool:
 def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
     def _sub(m: re.Match) -> str:
         num = m.group("num")
-        if _attributed(num.rstrip("+"), m.group("unit"), source):
+        unit = (m.groupdict().get("kw") or "") + m.group("unit") + (m.groupdict().get("tail") or "")
+        if _attributed(num.rstrip("+"), unit, source):
             return m.group(0)
         fixes.append("invented-metric:" + m.group(0)[:40])
+        if m.groupdict().get("kw"):
+            return m.group("kw") + m.group("unit") + _PLACEHOLDER + m.group("tail")
         return _PLACEHOLDER + m.group("unit")
 
-    return _METRIC.sub(_sub, text)
+    for pattern in _METRIC_PATTERNS:
+        text = pattern.sub(_sub, text)
+    return text
 
 
 def sanitize_with_source(value, source: str, fixes: list | None = None):
