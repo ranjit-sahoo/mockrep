@@ -277,6 +277,46 @@ def _conditionalize_unsupported(text: str, resume: str, key: str | None, fixes: 
     return text
 
 
+# Mid-phrase TitleCase / ALL-CAPS tokens in generated rewrite text that never
+# appear in the source are almost always invented tools, vendors or products
+# ("using Zendesk", "on CRM tools"). A rewrite may only use facts the source
+# states, so the minimal tool-naming complement is dropped instead of the
+# whole bullet. Sentence-initial capitals are ordinary grammar and skipped.
+_NAME_TOKEN = re.compile(r"(?<![A-Za-z0-9/#])([A-Z][A-Za-z0-9+#.]{1,})(?![A-Za-z0-9])")
+_NAME_CUES = ("using", "with", "via", "on", "through", "leveraging", "in", "at")
+_NAME_SUFFIX = r"(?:\s+(?:tools?|platforms?|software|systems?|suite|dashboards?))?"
+
+
+def scrub_invented_tools(text: str, source: str, fixes: list | None = None) -> str:
+    """Remove invented tool/vendor/product names from rewrite text.
+
+    ``source`` is the user's own text (original bullet, facts, resume); any
+    capitalized name it does not contain is treated as invented.
+    """
+    if fixes is None:
+        fixes = []
+    if not isinstance(text, str) or not text:
+        return text
+    src = source.lower()
+    out = text
+    for m in list(_NAME_TOKEN.finditer(text)):
+        tok = m.group(1)
+        if m.start() == 0 or text[max(0, m.start() - 2):m.start()] in (". ", "! ", "? "):
+            continue  # sentence-initial capital
+        if tok.lower() in src or len(tok) < 2 and tok.upper() in ("I", "A"):
+            continue
+        comp = re.compile(
+            r"\s*,?\s*(?:" + "|".join(_NAME_CUES) + r")\s+" + re.escape(tok) + _NAME_SUFFIX,
+            re.IGNORECASE)
+        new = comp.sub("", out, count=1)
+        if new != out:
+            fixes.append("invented-tool:" + tok)
+            out = new
+        else:
+            fixes.append("unverified-name:" + tok)
+    return out
+
+
 def sanitize_with_source(value, source: str, fixes: list | None = None,
                          requirement_source: str | None = None,
                          requirement_keys=(), _key: str | None = None):

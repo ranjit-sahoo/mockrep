@@ -300,3 +300,30 @@ def test_auto_rejected_grammar():
     out = factuality.sanitize("the application is typically auto-rejected", fixes)
     assert "typically rejection" not in out
     assert "set aside" in out
+
+
+def test_polish_invented_tool_and_metric_scrubbed():
+    out = factuality.scrub_invented_tools(
+        "Handled inbound calls using Zendesk, resolving 95% of issues on first contact",
+        "Handled inbound calls", [])
+    assert "Zendesk" not in out
+    out = factuality.sanitize_with_source(out, "Handled inbound calls", [])
+    assert "95%" not in out
+    assert "Handled inbound calls" in out
+
+
+def test_polish_real_tool_and_number_kept():
+    src = "Trained 5 new team members on CRM tools"
+    out = factuality.scrub_invented_tools(
+        "Trained 5 new team members on CRM tools, improving ramp time", src, [])
+    assert "CRM" in out
+    out = factuality.sanitize_with_source(out, src, [])
+    assert "5" in out and "CRM" in out
+
+
+def test_scrub_invented_tools_sentence_initial_capital_safe():
+    out = factuality.scrub_invented_tools(
+        "Resolved billing issues for a US telecom client",
+        "Resolve billing and technical issues for a US telecom client", [])
+    assert out.startswith("Resolved billing issues")
+    assert "US" in out

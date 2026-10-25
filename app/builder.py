@@ -2,7 +2,7 @@
 
 Templates and PDF export run in the browser (print to PDF), so the server only does the AI parts.
 """
-from app import llm, market
+from app import factuality, llm, market
 
 PARSE_SYSTEM = """Extract the resume into structured fields. Copy facts exactly, do not invent anything.
 Leave a field empty if it is missing. Return ONLY JSON:
@@ -70,7 +70,14 @@ def polish(role: str, bullets: list[str], country: str) -> list[str]:
     res = _list(out.get("bullets"), MAX_BULLETS, 300)
     if len(res) != len(bullets):
         return bullets  # model broke the contract; never return misaligned text
-    return res
+    fixes: list = []
+    clean = []
+    for orig, polished in zip(bullets, res):
+        evidence = f"{orig}\n{role}"
+        p = factuality.sanitize_with_source(polished, evidence, fixes)
+        p = factuality.scrub_invented_tools(p, evidence, fixes)
+        clean.append(p if p and p.strip() else orig)
+    return clean
 
 
 def summary(role: str, facts: str, country: str) -> str:
@@ -81,4 +88,9 @@ def summary(role: str, facts: str, country: str) -> str:
         "builder_summary", SUMMARY_SYSTEM.format(market=market.context(country)),
         f"TARGET ROLE: {_s(role, 100) or 'not given'}\nFACTS:\n{facts}", model=llm.FAST_MODEL,
     )
-    return _s(out.get("summary"), 700)
+    text = _s(out.get("summary"), 700)
+    evidence = f"{facts}\n{role}"
+    fixes: list = []
+    text = factuality.scrub_invented_tools(text, evidence, fixes)
+    text = factuality.sanitize_with_source(text, evidence, fixes)
+    return text if text and text.strip() else facts
