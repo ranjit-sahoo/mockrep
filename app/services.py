@@ -1,8 +1,11 @@
+import logging
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from app import basic_in, comms, db, llm, market, prompts
+from app import basic_in, comms, db, factuality, llm, market, prompts
+
+log = logging.getLogger(__name__)
 
 MAX_RESUME_CHARS = 12000
 MAX_JD_CHARS = 6000
@@ -64,13 +67,23 @@ def detect_country(resume: str, jd: str = "") -> dict:
 
 # ---------- resume + JD ----------
 def review_resume(resume: str, role: str, jd: str = "", country: str = "US"):
-    return llm.chat_json(
+    out = llm.chat_json(
         "resume_review", _sys(prompts.RESUME_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL
     )
+    fixes: list = []
+    out = factuality.sanitize(out, fixes)
+    if fixes:
+        log.info("factuality scrub on resume_review: %s", fixes)
+    return out
 
 
 def match_jd(resume: str, role: str, jd: str, country: str = "US"):
-    return llm.chat_json("match", _sys(prompts.MATCH_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL)
+    out = llm.chat_json("match", _sys(prompts.MATCH_SYSTEM, country), _ctx(resume, role, jd), model=llm.STRONG_MODEL)
+    fixes: list = []
+    out = factuality.sanitize(out, fixes)
+    if fixes:
+        log.info("factuality scrub on match: %s", fixes)
+    return out
 
 
 # ---------- mock interview ----------
