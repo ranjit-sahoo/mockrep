@@ -293,3 +293,10 @@ def test_causes_immediate_rejection_hedged():
     fixes = []
     out = factuality.sanitize("Absence of this causes immediate rejection or delay", fixes)
     assert "immediate rejection" not in out
+
+
+def test_auto_rejected_grammar():
+    fixes = []
+    out = factuality.sanitize("the application is typically auto-rejected", fixes)
+    assert "typically rejection" not in out
+    assert "set aside" in out

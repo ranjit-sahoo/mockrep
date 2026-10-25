@@ -24,6 +24,7 @@ _RULES = [
     # Unsupported causal certainty about recruiter behavior.
     (re.compile(r"\bforces? (?:them|employers|recruiters|hiring managers) to assume\b", re.I), "may lead them to assume"),
     (re.compile(r"\bwill auto-?reject\w*\b", re.I), "may deprioritize"),
+    (re.compile(r"\bauto-?rejected\b", re.I), "set aside"),
     (re.compile(r"\bauto-?reject\w*\b", re.I), "rejection"),
     (re.compile(r"\b(?:often |always )?leads? to rejection\b", re.I), "can hurt the application"),
     (re.compile(r"\bguarantee[sd]?\b", re.I), "may improve the odds of"),
