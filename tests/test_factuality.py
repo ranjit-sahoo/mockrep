@@ -247,3 +247,16 @@ def test_fallback_req_cue_uses_jd():
         {"fix": "Add your actual CSAT against the JD's 90% CSAT target"}, RESUME,
         requirement_source=JD)
     assert "90%" in out["fix"]
+
+
+def test_h1b_not_mangled():
+    out = factuality.sanitize_with_source(
+        {"fix": "state your status: H-1B / TN / OPT - only if true"}, NURSE)
+    assert "H-1B" in out["fix"]
+
+
+def test_will_auto_reject_grammar():
+    fixes = []
+    out = factuality.sanitize("ATS will auto-reject or deprioritize", fixes)
+    assert "will rejection" not in out
+    assert "may deprioritize" in out

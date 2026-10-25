@@ -23,6 +23,7 @@ _RULES = [
     (re.compile(r"\bmeets? (?:the )?minimum (?:education )?requirement", re.I), "is typically part of what is asked for"),
     # Unsupported causal certainty about recruiter behavior.
     (re.compile(r"\bforces? (?:them|employers|recruiters|hiring managers) to assume\b", re.I), "may lead them to assume"),
+    (re.compile(r"\bwill auto-?reject\w*\b", re.I), "may deprioritize"),
     (re.compile(r"\bauto-?reject\w*\b", re.I), "rejection"),
     (re.compile(r"\b(?:often |always )?leads? to rejection\b", re.I), "can hurt the application"),
     (re.compile(r"\bguarantee[sd]?\b", re.I), "may improve the odds of"),
@@ -159,7 +160,7 @@ def _scrub_invented_metrics(text: str, source: str, fixes: list) -> str:
 # output. This catches invented specifics in copy-ready text regardless of
 # which metric vocabulary they use ("Cared for 2 critically ill patients",
 # "100% medication-safety compliance", "1:2 ratio").
-_NUMBER = re.compile(r"(?<![0-9.])(?P<num>\d+(?:[.:]\d+)?)(?![0-9.])")
+_NUMBER = re.compile(r"(?<![0-9.A-Za-z])(?P<num>\d+(?:[.:]\d+)?)(?![0-9.A-Za-z])")
 _REQ_CUE = re.compile(
     r"\b(?:target|requirement|required|requires|threshold|job description|JD|"
     r"asks? for|must maintain|the role expects|the posting)\b", re.I)
