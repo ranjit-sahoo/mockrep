@@ -178,8 +178,8 @@ _SYNONYMS = {"hires": ("joiners",), "joiners": ("hires",),
 
 
 def _number_attributed(num: str, text: str, pos: int, source: str) -> bool:
-    lo = max(0, pos - 40)
-    ctx = [w for w in re.findall(r"[a-z][a-z-]{2,}", text[lo:pos + len(num) + 40].lower())
+    lo = max(0, pos - 80)
+    ctx = [w for w in re.findall(r"[a-z][a-z-]{2,}", text[lo:pos + len(num) + 80].lower())
            if w not in _STOP]
     ctx = ctx + [syn for w in ctx for syn in _SYNONYMS.get(w, ())]
     src = source.lower()
