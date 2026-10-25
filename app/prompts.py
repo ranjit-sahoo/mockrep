@@ -6,7 +6,11 @@ Return ONLY JSON:
  "strengths": [str],
  "rewrite_examples": [{{"before": str, "after": str}}]}}
 Give 4-8 weaknesses ordered by importance. Check: impact/numbers, summary, ATS keywords for the role,
-skills organisation, gaps or inconsistencies, formatting problems, and conventions of the target market."""
+skills organisation, gaps or inconsistencies, formatting problems, and conventions of the target market.
+Factuality rules (strict):
+- Every fact in "fix" and in rewrite "after" text must come from the resume or the job description. Never invent or assume metrics, scores, achievements, employers, dates, certifications, license numbers, visa or work-authorization status, shift availability, or tools used.
+- Where a detail would strengthen the line but is unknown, keep a square-bracket placeholder that is clearly conditional, e.g. [add your first-call-resolution % - only if you know it], [if you already hold work authorization for this country, state the type - only if true]. Never fill a placeholder with a made-up value, and never write an example value as if it were the candidate's own fact.
+- Do not state licensing, visa or legal requirements as blanket hiring rules (for example "employers cannot interview you without X"). Phrase them as possibilities to verify, for example "many employers for this role ask for X - check the specific job posting"."""
 
 DETECT_SYSTEM = """Decide which job market the CANDIDATE belongs to, from the resume and optional job description:
 "US" (the candidate lives in or is authorized to work in the United States), "India" (the candidate lives in India),
@@ -46,7 +50,7 @@ Return ONLY JSON:
 {{"match_score": 0-100 int, "verdict": str (one sentence),
  "matched_keywords": [str], "missing_keywords": [str] (important JD skills/terms absent from the resume),
  "gaps": [{{"gap": str, "fix": str}}] (3-6 items, honest: do not suggest claiming skills the candidate lacks),
- "tailored_bullets": [{{"before": str, "after": str}}] (2-4 rewrites of REAL resume lines using JD language)}}"""
+ "tailored_bullets": [{{"before": str, "after": str}}] (2-4 rewrites of REAL resume lines using JD language. Build only from facts in the resume or JD: never invent metrics, certifications, employers, dates, license numbers or work-authorization status. Where a detail is unknown but would help, keep a clearly conditional square-bracket placeholder such as [add your number - only if true])}}"""
 
 NEGO_START_SYSTEM = """You run a salary negotiation practice. You play a recruiter/hiring manager making a job offer. {market}
 Given the candidate profile and role, set up a realistic scenario. Return ONLY JSON:
