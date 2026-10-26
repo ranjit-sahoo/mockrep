@@ -68,6 +68,19 @@ function bankRender(){
   document.querySelectorAll('#bankFilter button').forEach(b=>b.classList.toggle('on',b.dataset.f===bankFilter));
 }
 $('bankFilter').onclick=e=>{if(e.target.dataset.f){bankFilter=e.target.dataset.f;bankRender()}};
+let bankPack=null;
+async function bankPackLoad(){if(bankPack)return bankPack;try{const r=await fetch('/static/bank-common.json');bankPack=r.ok?await r.json():null}catch(e){bankPack=null}return bankPack}
+function bankPackMatch(pk,roleText){
+  const t=(roleText||'').toLowerCase().trim();
+  let name=null;
+  if(t){
+    name=pk.roles.find(r=>r.toLowerCase()===t)||null;
+    if(!name)name=pk.roles.find(r=>t.includes(r.toLowerCase()))||null;
+    if(!name)name=pk.roles.find(r=>r.toLowerCase().split(/[\/()]/).map(x=>x.trim()).filter(x=>x.length>2).some(x=>t.includes(x)))||null;
+  }
+  const qs=(name?(pk.by_role[name]||[]):[]).concat(pk.general||[]);
+  return {role:name||'General',questions:qs};
+}
 async function bankGo(ai){
   $('bankErr').textContent='';
   try{
@@ -82,7 +95,16 @@ async function bankGo(ai){
     $('bankFilter').innerHTML=['all','technical','behavioral','scenario'].map(f=>`<button data-f="${f}">${f}</button>`).join('');
     bankRender();
     const ba=$('bankAi');if(ba)ba.onclick=()=>busy(ba,'Generating...',()=>bankGo(true));
-  }catch(e){$('bankErr').textContent=e.message}
+  }catch(e){
+    const pk=await bankPackLoad();
+    if(pk){
+      const m=bankPackMatch(pk,($('bankRole').value||$('role').value).trim());
+      bankAll=m.questions;bankFilter='all';
+      $('bankFilter').innerHTML=['all','technical','behavioral','scenario'].map(f=>`<button data-f="${f}">${f}</button>`).join('');
+      bankRender();
+      $('bankCoOut').innerHTML=`<p class="note">${esc(pk.offline_note)}${($('bankCo').value||'').trim()?' Company-style questions need internet.':''}</p>`;
+    }else{$('bankErr').textContent=e.message}
+  }
 }
 $('btnBank').onclick=()=>busy($('btnBank'),'Loading...',()=>bankGo(false));
 

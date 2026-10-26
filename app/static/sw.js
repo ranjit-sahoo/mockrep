@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and keeps the shell available offline.
 // API calls are never cached.
-const CACHE = "mr-shell-v16";
+const CACHE = "mr-shell-v17";
 // Complete shell: every asset index.html and the manifest need. addAll below is atomic - if any
 // fetch fails, install fails, this worker never activates, and the previous worker and its cache
 // keep serving, so a half-downloaded update can never leave the app broken offline.
@@ -10,6 +10,7 @@ const SHELL = [
   "/static/hub.js",
   "/static/hubdata.js",
   "/static/coding-problems.json",
+  "/static/bank-common.json",
   "/static/manifest.webmanifest",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
