@@ -108,6 +108,7 @@ def _schema():
         "CREATE INDEX IF NOT EXISTS pipeline_org ON pipeline (org_id, updated)",
         "CREATE TABLE IF NOT EXISTS audit (id TEXT PRIMARY KEY, org_id TEXT NOT NULL, user_email TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL, ts " + _REAL + " NOT NULL)",
         "CREATE INDEX IF NOT EXISTS audit_org ON audit (org_id, ts)",
+        "CREATE TABLE IF NOT EXISTS entitlements (user_id TEXT PRIMARY KEY, plan_id TEXT NOT NULL DEFAULT 'free', state TEXT NOT NULL DEFAULT 'free', expiry_at " + _REAL + ", source TEXT NOT NULL DEFAULT 'none', last_verified_at " + _REAL + ", schema_version INTEGER NOT NULL DEFAULT 1)",
     ]
 
 

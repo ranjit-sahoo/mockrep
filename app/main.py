@@ -14,6 +14,7 @@ from app.guard import FailLimiter, RateLimiter, client_key, rate_limit
 
 app = FastAPI(title="MockRep", docs_url=None, redoc_url=None, openapi_url=None)
 from app import analytics as _analytics  # noqa: E402
+from app import entitlements  # noqa: E402
 
 _analytics.install(app)
 from app import hub as _hub  # noqa: E402
@@ -684,6 +685,7 @@ def logout_all(u=Depends(need_user)):
 def auth_me(request: Request):
     u = current_user(request)
     return {"user": {"email": u["email"], "role": u.get("role", "candidate"), "org_role": u.get("org_role"), "plan": u.get("plan", "free")} if u else None,
+            "entitlement": entitlements.record_for(u), "ads": entitlements.ADS,
             "persistent": accounts.using_postgres()}
 
 

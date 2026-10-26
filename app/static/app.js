@@ -617,3 +617,6 @@ let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;const b=$('installBtn');if(b)b.classList.remove('hide')});
 window.addEventListener('appinstalled',()=>{deferredInstall=null;const b=$('installBtn');if(b)b.classList.add('hide')});
 const installBtn=$('installBtn');if(installBtn)installBtn.onclick=async()=>{if(!deferredInstall)return;deferredInstall.prompt();await deferredInstall.userChoice.catch(()=>null);deferredInstall=null;installBtn.classList.add('hide')};
+
+// ---- ad container seam (inert): renders nothing while disabled; not remotely settable
+const ADS_ENABLED=false;{const ab=$('adBox');if(ab&&ADS_ENABLED===true){/* future approved ads only */}}
