@@ -7,7 +7,7 @@ const wakeT=setTimeout(()=>$('wake').classList.remove('hide'),3000);
 fetch('/health').then(r=>r.json()).then(h=>{if(h.mock_mode)$('mock').classList.remove('hide')}).catch(()=>{}).finally(()=>{clearTimeout(wakeT);$('wake').classList.add('hide')});
 
 async function api(url,opts){
-  let r;try{r=await fetch(url,opts)}catch(e){throw new Error('Network problem. Check your connection and try again.')}
+  let r;try{r=await fetch(url,opts)}catch(e){throw new Error(typeof navigator!=='undefined'&&navigator.onLine===false?'You are offline. This feature needs internet.':'Network problem. Check your connection and try again.')}
   const j=await r.json().catch(()=>({}));
   if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:(r.status===422?'Please check your input.':'Request failed'));
   return j;
@@ -88,12 +88,15 @@ $('btnBank').onclick=()=>busy($('btnBank'),'Loading...',()=>bankGo(false));
 
 // ---- coding practice
 let cpId=null,cpLevel=0,cpDrafts={};
+let cpPack=null;
+async function cpPackLoad(){if(cpPack)return cpPack;try{const r=await fetch('/static/coding-problems.json');cpPack=r.ok?await r.json():null}catch(e){cpPack=null}return cpPack}
+function cpRender(problems,note){$('cpList').dataset.ok=1;
+  $('cpList').innerHTML='<p class="note">Pick a problem, write your solution, and get an AI review of correctness, edge cases and complexity.</p>'+(note?`<p class="note">${esc(note)}</p>`:'')+
+    problems.map(p=>`<div class="cand"><span class="pill">${esc(p.level)}</span><span class="pill">${esc(p.topic)}</span><p><b>${esc(p.title)}</b></p><button class="alt" data-p="${esc(p.id)}">Practice</button></div>`).join('')}
 async function cpLoad(){
   if($('cpList').dataset.ok)return;
-  try{const j=await api('/api/coding/problems');$('cpList').dataset.ok=1;
-    $('cpList').innerHTML='<p class="note">Pick a problem, write your solution, and get an AI review of correctness, edge cases and complexity.</p>'+
-      j.problems.map(p=>`<div class="cand"><span class="pill">${esc(p.level)}</span><span class="pill">${esc(p.topic)}</span><p><b>${esc(p.title)}</b></p><button class="alt" data-p="${esc(p.id)}">Practice</button></div>`).join('')}
-  catch(e){$('cpList').innerHTML=`<div class="err">${esc(e.message)}</div>`}
+  try{const j=await api('/api/coding/problems');cpRender(j.problems)}
+  catch(e){const pk=await cpPackLoad();if(pk)cpRender(pk.problems,pk.offline_note);else $('cpList').innerHTML=`<div class="err">${esc(e.message)}</div>`}
 }
 $('cpList').onclick=async e=>{const id=e.target.dataset&&e.target.dataset.p;if(!id)return;
   try{const p=await api('/api/coding/problems/'+encodeURIComponent(id));cpId=id;cpLevel=0;
@@ -102,7 +105,13 @@ $('cpList').onclick=async e=>{const id=e.target.dataset&&e.target.dataset.p;if(!
     const d=cpDrafts[id];$('cpCode').value=d&&d.code||p.starters[p.languages[0]];if(d&&d.lang)$('cpLang').value=d.lang;
     $('cpHints').innerHTML='';$('cpOut').innerHTML='';$('cpErr').textContent='';
     $('cpList').classList.add('hide');$('cpWork').classList.remove('hide')}
-  catch(err){alert(err.message)}};
+  catch(err){const pk=await cpPackLoad();const p=pk&&pk.problems.find(x=>x.id===id);if(!p){alert(err.message);return}
+    cpId=id;cpLevel=0;
+    $('cpTitle').textContent=p.title;$('cpLevel').textContent=p.level;$('cpTopic').textContent=p.topic;$('cpStmt').textContent=p.statement;
+    $('cpLang').innerHTML=p.languages.map(l=>`<option>${l}</option>`).join('');$('cpLang').dataset.st=JSON.stringify(p.starters);
+    const d=cpDrafts[id];$('cpCode').value=d&&d.code||p.starters[p.languages[0]];if(d&&d.lang)$('cpLang').value=d.lang;
+    $('cpHints').innerHTML='';$('cpOut').innerHTML='';$('cpErr').textContent='Offline copy: AI review and hints need internet.';
+    $('cpList').classList.add('hide');$('cpWork').classList.remove('hide')}};
 $('cpBack').onclick=()=>{cpDrafts[cpId]={code:$('cpCode').value,lang:$('cpLang').value};$('cpWork').classList.add('hide');$('cpList').classList.remove('hide')};
 $('cpLang').onchange=()=>{const st=JSON.parse($('cpLang').dataset.st||'{}'),cur=$('cpCode').value.trim();
   if(!cur||Object.values(st).some(v=>v.trim()===cur))$('cpCode').value=st[$('cpLang').value]||''};
@@ -600,3 +609,11 @@ const resumeIv=document.createElement('button');resumeIv.className='ghost';resum
 const version=document.createElement('p');version.className='note';version.textContent='MockRep web 1.0.3 · Online AI tools · Free plan · Android app updates install over the previous version';$('trust').append(version);
 
 const resumeNego=document.createElement('button');resumeNego.className='ghost';resumeNego.textContent='Resume last negotiation in this tab';$('btnNego').after(resumeNego);resumeNego.onclick=async()=>{try{nsid=sessionStorage.getItem('mr_negotiation');if(!nsid)throw new Error('No negotiation to resume in this tab.');const st=await api('/api/negotiation/'+encodeURIComponent(nsid)+'/state');$('chat').innerHTML='';$('negoBox').classList.remove('hide');$('negoInfo').textContent='Estimated market range: '+st.scenario.market_range+' (verify independently)';for(const t of st.transcript)bubble(t.who,t.text);$('btnSay').disabled=st.done}catch(e){$('negoErr').textContent=e.message}};
+
+// ---- offline indicator + install prompt
+function offUpd(){const b=$('offBar');if(b)b.classList.toggle('hide',navigator.onLine!==false)}
+window.addEventListener('online',offUpd);window.addEventListener('offline',offUpd);offUpd();
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;const b=$('installBtn');if(b)b.classList.remove('hide')});
+window.addEventListener('appinstalled',()=>{deferredInstall=null;const b=$('installBtn');if(b)b.classList.add('hide')});
+const installBtn=$('installBtn');if(installBtn)installBtn.onclick=async()=>{if(!deferredInstall)return;deferredInstall.prompt();await deferredInstall.userChoice.catch(()=>null);deferredInstall=null;installBtn.classList.add('hide')};

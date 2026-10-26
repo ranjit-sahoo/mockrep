@@ -1,0 +1,231 @@
+{
+ "offline_note": "Offline copy: practice and statements work; AI review and hints need internet.",
+ "problems": [
+  {
+   "id": "two-sum",
+   "title": "Two Sum",
+   "level": "easy",
+   "topic": "arrays, hash map",
+   "statement": "Given a list of integers and a target, return the indices of the two numbers that add up to the target. Exactly one solution exists. Aim for O(n).",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "valid-parens",
+   "title": "Valid Parentheses",
+   "level": "easy",
+   "topic": "stack, strings",
+   "statement": "Given a string containing only ()[]{} characters, return true if the brackets are balanced and correctly nested.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "reverse-words",
+   "title": "Reverse Words in a String",
+   "level": "easy",
+   "topic": "strings",
+   "statement": "Reverse the order of words in a sentence. Collapse repeated spaces and trim the ends. Do not use a built-in that does the whole job.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "anagram-groups",
+   "title": "Group Anagrams",
+   "level": "medium",
+   "topic": "hash map, strings",
+   "statement": "Given a list of words, group the words that are anagrams of each other. Return a list of groups.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "longest-substring",
+   "title": "Longest Substring Without Repeating Characters",
+   "level": "medium",
+   "topic": "sliding window",
+   "statement": "Return the length of the longest substring of a string that has no repeating characters. Aim for O(n).",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "merge-intervals",
+   "title": "Merge Intervals",
+   "level": "medium",
+   "topic": "sorting, arrays",
+   "statement": "Given a list of [start, end] intervals, merge all overlapping intervals and return the result sorted by start.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "lru-cache",
+   "title": "LRU Cache",
+   "level": "medium",
+   "topic": "design, hash map, linked list",
+   "statement": "Design a cache with a fixed capacity supporting get(key) and put(key, value) in O(1). When full, evict the least recently used key.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "top-k-frequent",
+   "title": "Top K Frequent Elements",
+   "level": "medium",
+   "topic": "heap, hash map",
+   "statement": "Given a list of integers and k, return the k most frequent elements. Better than O(n log n) is a plus.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "binary-search-rotated",
+   "title": "Search in Rotated Sorted Array",
+   "level": "hard",
+   "topic": "binary search",
+   "statement": "A sorted array of distinct integers was rotated at an unknown pivot. Find the index of a target in O(log n), or -1.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "sql-second-highest",
+   "title": "SQL: Second Highest Salary",
+   "level": "easy",
+   "topic": "sql",
+   "statement": "Table Employee(id, name, salary, department_id). Write a query that returns the second highest distinct salary, or NULL if it does not exist.",
+   "languages": [
+    "SQL"
+   ],
+   "starters": {
+    "SQL": "-- write your query\nSELECT 1;\n"
+   }
+  },
+  {
+   "id": "sql-dept-top-earners",
+   "title": "SQL: Top 3 Earners per Department",
+   "level": "medium",
+   "topic": "sql, window functions",
+   "statement": "Tables Employee(id, name, salary, department_id) and Department(id, name). Return department name, employee name and salary for the top 3 distinct salaries in each department.",
+   "languages": [
+    "SQL"
+   ],
+   "starters": {
+    "SQL": "-- write your query\nSELECT 1;\n"
+   }
+  },
+  {
+   "id": "sql-duplicate-emails",
+   "title": "SQL: Duplicate Emails",
+   "level": "easy",
+   "topic": "sql",
+   "statement": "Table Person(id, email). Return every email that appears more than once.",
+   "languages": [
+    "SQL"
+   ],
+   "starters": {
+    "SQL": "-- write your query\nSELECT 1;\n"
+   }
+  },
+  {
+   "id": "rate-limiter",
+   "title": "Design: Rate Limiter",
+   "level": "hard",
+   "topic": "design, sliding window",
+   "statement": "Implement a rate limiter that allows at most N requests per user in any rolling 60 second window. Explain how it behaves under concurrent calls.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  },
+  {
+   "id": "flatten-json",
+   "title": "Flatten Nested JSON",
+   "level": "medium",
+   "topic": "recursion, objects",
+   "statement": "Flatten a nested dict/object into one level with dot-separated keys, e.g. {a:{b:1}} becomes {'a.b':1}. Handle arrays by index.",
+   "languages": [
+    "Python",
+    "JavaScript",
+    "Java"
+   ],
+   "starters": {
+    "Python": "def solve(*args):\n    # write your solution\n    pass\n",
+    "JavaScript": "function solve(...args) {\n  // write your solution\n}\n",
+    "Java": "class Solution {\n    // write your solution\n}\n"
+   }
+  }
+ ]
+}
