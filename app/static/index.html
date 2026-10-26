@@ -60,6 +60,15 @@ h2{margin:6px 0 8px;letter-spacing:-.4px;font-size:var(--fs-xl);line-height:var(
 
 #rbPrev{background:#fff;color:#111;border-radius:10px;padding:28px 32px;margin-top:14px;font-size:13.5px;line-height:1.45;overflow-wrap:anywhere}
 #rbPrev h1{margin:0;font-size:24px;color:#111}#rbPrev h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #333;color:#111}
+@media print{
+body{background:#fff!important}
+#topbar,aside,footer,#cookieBar,#networkNotice,#wake,#adBox,.skip,.herocta{display:none!important}
+#work>*:not(#t-builder){display:none!important}
+#t-builder{display:block!important}
+#t-builder>*:not(#rbPrev){display:none!important}
+#rbPrev{margin:0!important;border-radius:0;box-shadow:none;padding:0;width:100%}
+.flagbtn{display:none!important}
+}
 #rbPrev ul{margin:4px 0 6px 18px;padding:0}#rbPrev .r{display:flex;justify-content:space-between;gap:12px;font-weight:600}#rbPrev .m{color:#555;font-weight:400}
 #rbPrev.classic{font-family:Georgia,'Times New Roman',serif}#rbPrev.classic .hd{text-align:center}
 #rbPrev.modern{font-family:system-ui,Arial,sans-serif}#rbPrev.modern h1,#rbPrev.modern h2{color:#2a55c8;border-color:#2a55c8}
