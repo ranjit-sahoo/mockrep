@@ -171,7 +171,7 @@ function menu(){const d=$('drawer');if(!d)return;d.querySelectorAll('[data-hub]'
  let ref=anchor;for(const it of items){ref.after(it);ref=it}
  const rb=d.querySelector('button[data-v=recruiter]');if(rb&&rec){rb.lastChild.textContent='AI Recruiter Mode';ref.after(rb)}
  // recruiter accounts see recruiter tools only; candidates and guests never see recruiter-only items
- const CAND=['interview','prep','bank','review','builder','match','star','brief','nego','code'];
+ const CAND=['interview','sessions','prep','bank','review','builder','match','star','brief','nego','code'];
  d.querySelectorAll('.dgroup').forEach(g=>{if(['Practice','Your resume','More tools'].includes(g.textContent.trim()))g.classList.toggle('hide',!!rec)});
  d.querySelectorAll('button[data-v]').forEach(c=>{if(CAND.includes(c.dataset.v))c.classList.toggle('hide',!!rec);if(c.dataset.v==='recruiter')c.classList.toggle('hide',!rec)});
  // the recruiter group heading stays visible
@@ -187,7 +187,7 @@ function init(){M=window.__mr;if(!M)return;const st=h('style',{},STYLE);document
  const dl2=$('dLogin');if(dl2)dl2.before(lite);
  new MutationObserver(onView).observe(document.body,{attributes:true,attributeFilter:['data-view']});
  let prev=null;const sync=async()=>{const was=prev;try{const j=await get('/api/auth/me');ME=j.user;if(ME&&ME.role==='recruiter'){try{const o=await get('/api/hub/org');ME.company=o.name}catch(e){}}}catch(e){ME=null}prev=ME;menu();const hb=$('dHist');if(hb&&ME&&ME.role==='recruiter')hb.style.display='none';else if(hb)hb.style.display='';const ah=$('acctHist');if(ah&&ME&&ME.role==='recruiter')ah.style.display='none';const v=document.body.dataset.view;if(ME&&ME.role==='recruiter'&&!was&&v==='account')M.setView('h-dash');if(v&&v.startsWith('h-'))vRender(v);
-  if(ME&&ME.role==='recruiter'&&['prep','interview','review','match','nego','star','brief','bank','code','builder'].includes(v))M.setView('h-dash')};
+  if(ME&&ME.role==='recruiter'&&['prep','interview','sessions','review','match','nego','star','brief','bank','code','builder'].includes(v))M.setView('h-dash')};
  window.addEventListener('mr:me',sync);sync().then(()=>{const hv=window.__startHash||'';if(RENDER[hv])M.setView(hv,false)})}
 document.addEventListener('change',e=>{if(e.target.name==='acRole'){const w=$('acInvWrap');if(w)w.classList.toggle('hide',e.target.value!=='recruiter')}});
 if(window.__mr)init();else window.addEventListener('mr:ready',init);

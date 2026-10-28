@@ -706,7 +706,7 @@ REPORT_KINDS = {
     "prep", "resume-review", "jd-match", "star-answer", "company-brief",
     "coding-review", "coding-hint", "negotiation", "question-bank-ai",
     "resume-builder", "interview-report", "interview-feedback",
-    "recruiter-screening", "self-test", "other",
+    "recruiter-screening", "self-test", "practice-session", "other",
 }
 
 

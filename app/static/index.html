@@ -175,6 +175,7 @@ body.guided #acct{display:none}
 <nav id="drawer" aria-label="Main menu" class="hide"><div class="dhead"><b>Menu</b><button id="menuClose" aria-label="Close menu">&times;</button></div>
 <button data-v="home"><i>&#8962;</i>Home</button>
 <div class="dgroup">Practice</div>
+<button data-v="sessions"><i>&#127919;</i>Practice Sessions<small>Pick a job, press Start, practise</small></button>
 <button data-v="interview"><i>&#127908;</i>Mock Interview<small>Speak or type your answers</small></button>
 <button data-v="prep"><i>&#128221;</i>Interview Prep<small>Questions with model answers</small></button>
 <button data-v="bank"><i>&#128218;</i>Question Bank<small>Common questions by job</small></button>
@@ -206,10 +207,12 @@ body.guided #acct{display:none}
 <h1>Walk into every interview <em>ready</em>.</h1>
 <div class="sub">Practice your interview with an AI coach. Works for any job: IT, BPO, hotel, airline, banking and more. Built for the US and India.</div><p class="promise">Paste your resume and a job description. In about a minute you get tailored questions, a scored mock interview and a report that tells you what to fix. Free, no login.</p>
 <p class="herocta"><button id="heroCta" type="button">Start a free mock interview</button><span class="note">No login. Takes about a minute to set up.</span></p>
+<p class="herocta" style="margin-top:0"><button id="heroPractice" type="button" class="ghost" data-v="sessions">Or practise by job, no resume</button></p>
 <ol class="strip" aria-label="How it works"><li><b>1</b><span>Get your prep pack</span></li><li><b>2</b><span>Do a mock interview, typed or spoken</span></li><li><b>3</b><span>Read your report, fix, retry</span></li></ol>
 <div class="feat"><span>Prep pack with model answers</span><span>Resume review</span><span>Resume-to-job match</span><span>Voice mock interviews with follow-ups</span><span>Company brief</span><span>STAR answer builder</span><span>Shareable score card</span><span>English coaching</span><span>Salary negotiation</span><span>Recruiter screening</span></div></header>
 <section id="homeGrid"><h2 style="margin:18px 0 6px">What do you want to do?</h2>
 <div class="hgrid">
+<button data-v="sessions" class="hc" style="grid-column:1/-1;min-height:96px"><i>&#127919;</i><b>Practice Sessions</b><span>Pick a job, press Start. Questions with answers, no resume.</span></button>
 <button data-v="interview" class="hc"><i>&#127908;</i><b>Mock Interview</b><span>Practice out loud or by typing. Get a score.</span></button>
 <button data-v="prep" class="hc"><i>&#128221;</i><b>Interview Prep</b><span>Likely questions with answers for your job.</span></button>
 <button data-v="review" class="hc"><i>&#128196;</i><b>Resume Review</b><span>Upload your resume and get a rating.</span></button>
@@ -390,4 +393,4 @@ body.guided #acct{display:none}
 </div>
 <div id="stickyCta"><button id="stickyCtaBtn" type="button">Start a free mock interview</button></div>
 <div id="cookieBar" class="hide" role="dialog" aria-label="Cookie notice"><span>MockRep uses one login cookie only if you sign in. No ads or tracking cookies. <a href="/cookies">Cookie policy</a></span><button id="cookieOk" type="button">Got it</button></div>
-<script src="/static/app.js" defer></script><script src="/static/hubdata.js" defer></script><script src="/static/hub.js" defer></script></body></html>
+<script src="/static/app.js" defer></script><script src="/static/hubdata.js" defer></script><script src="/static/hub.js" defer></script><script src="/static/sessions.js" defer></script></body></html>
