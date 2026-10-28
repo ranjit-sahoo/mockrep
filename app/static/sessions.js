@@ -87,14 +87,28 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
   const err=h('div',{class:'err',role:'alert'});
   const tryBox=h('div',{},h('label',{for:'sessTry',class:'note'},'Try it yourself'),ta);
   const row1=h('div',{class:'row'});
-  if(SR){let base='';const mic=h('button',{type:'button',class:'alt',id:'sessMic',onclick:()=>{
-      if(rec){stopMic();mic.textContent='Speak my answer';return}err.textContent='';let got=false;
-      try{rec=new SR();rec.lang='en-IN';rec.continuous=true;rec.interimResults=true}catch(e){rec=null;err.textContent='Speaking is not available in this browser. Please type your answer.';return}
-      base=ta.value?ta.value.replace(/\s+$/,'')+' ':'';mic.textContent='Stop';
-      rec.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript+' ';got=got||!!t.trim();ta.value=(base+t).trim();st.tried=ta.value};
-      rec.onerror=e=>{const c=e&&e.error;err.textContent=(c==='not-allowed'||c==='service-not-allowed')?'Microphone access was blocked. Please allow the microphone for this site and try again, or type your answer.':c==='no-speech'?'No speech was heard. Try again in a quiet place.':'Speaking did not work ('+(c||'error')+'). Please type your answer.'};
-      rec.onend=()=>{rec=null;mic.textContent='Speak my answer';if(!got&&!err.textContent)err.textContent='No speech was recognised. Please try again or type your answer.'};
-      try{rec.start()}catch(e){rec=null;mic.textContent='Speak my answer';err.textContent='Could not start the microphone. Please type your answer.'}}},'Speak my answer');row1.append(mic)}
+  const ANDROID=/Android/i.test(navigator.userAgent||'');
+  if(SR){let base='',wantMic=false,micFinal='',micGot=false,micRetries=0,micErr='';
+    const paint=interim=>{ta.value=[base,micFinal,interim||''].filter(x=>x&&x.trim()).join(' ').trim();st.tried=ta.value};
+    const beginRec=()=>{let rec0;
+      try{rec0=new SR();rec0.lang='en-IN';rec0.continuous=!ANDROID;rec0.interimResults=true;rec0.maxAlternatives=1}catch(e){rec=null;wantMic=false;mic.textContent='Speak my answer';err.textContent='Speaking is not available in this browser. Please type your answer.';return}
+      rec=rec0;micErr='';let done=0;
+      rec0.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i],t=r&&r[0]&&r[0].transcript?r[0].transcript.trim():'';if(!t)continue;
+        if(r.isFinal){if(i>=done){micFinal=(micFinal?micFinal+' ':'')+t;micGot=true;done=i+1}}else interim+=' '+t}
+        paint(interim)};
+      rec0.onerror=e=>{const c=e&&e.error;micErr=c||'error';if(c==='aborted'||c==='no-speech')return;
+        err.textContent=(c==='not-allowed'||c==='service-not-allowed')?'Microphone access was blocked. Please allow the microphone for this site and try again, or type your answer.':'Speaking did not work ('+(c||'error')+'). Please type your answer.'};
+      rec0.onend=()=>{if(rec===rec0)rec=null;
+        if(rec)return;
+        if(!wantMic||!ta.isConnected||micErr==='not-allowed'||micErr==='service-not-allowed'||micErr==='audio-capture'){wantMic=false;mic.textContent='Speak my answer';paint();return}
+        if(micErr==='no-speech'&&!micGot&&++micRetries>=2){wantMic=false;mic.textContent='Speak my answer';err.textContent='No speech was heard. Try again in a quiet place.';paint();return}
+        base=[base,micFinal].filter(x=>x&&x.trim()).join(' ');micFinal='';micErr='';
+        setTimeout(()=>{if(wantMic&&ta.isConnected&&!rec){try{beginRec()}catch(x){wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not restart the microphone. Please type your answer.'}}},ANDROID?250:0)};
+      try{rec0.start()}catch(e){if(rec===rec0)rec=null;wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not start the microphone. Please type your answer.'}};
+    const mic=h('button',{type:'button',class:'alt',id:'sessMic',onclick:()=>{
+      if(rec){wantMic=false;stopMic();mic.textContent='Speak my answer';paint();return}
+      if(wantMic){wantMic=false;mic.textContent='Speak my answer';paint();return}
+      err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;wantMic=true;mic.textContent='Stop';beginRec()}},'Speak my answer');row1.append(mic)}
   const ansBox=h('div',{id:'sessAns','aria-live':'polite'});
   const reveal=h('button',{type:'button',class:'big',id:'sessShow',onclick:()=>{st.shown=true;drawAns()}},'Show model answer');
   row1.append(reveal);
