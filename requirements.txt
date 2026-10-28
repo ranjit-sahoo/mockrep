@@ -7,3 +7,4 @@ pypdf==6.21.3
 psycopg[binary,pool]==3.3.6
 pillow==13.0.0
 certifi>=2026.10.19
+google-auth[requests]>=2.40,<3

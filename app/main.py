@@ -9,7 +9,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import accounts, bank, brief, builder, card, coding, companies, icons, llm, prep, reports, services, star
+from app import accounts
+
+try:
+    from google.oauth2 import id_token as _google_id_token
+    from google.auth.transport import requests as _google_requests
+    _GOOGLE_AUTH_OK = True
+except Exception:  # google-auth not installed
+    _GOOGLE_AUTH_OK = False
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+from app import bank, brief, builder, card, coding, companies, icons, llm, prep, reports, services, star
 from app.guard import FailLimiter, RateLimiter, client_key, rate_limit
 
 app = FastAPI(title="MockRep", docs_url=None, redoc_url=None, openapi_url=None)
@@ -120,9 +130,11 @@ async def security_headers(request: Request, call_next):
     h.setdefault("Strict-Transport-Security", "max-age=31536000")
     h.setdefault(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
-        "connect-src 'self'; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; "
-        "form-action 'self'; frame-ancestors 'none'",
+        "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; "
+        "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob:; "
+        "connect-src 'self' https://accounts.google.com/gsi/; font-src 'self' data:; media-src 'self' blob:; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com/gsi/; "
+        "frame-ancestors 'none'",
     )
     return resp
 
@@ -645,6 +657,38 @@ def auth_login(body: AuthIn, request: Request):
     return resp
 
 
+class GoogleIn(BaseModel):
+    credential: str = Field(min_length=1, max_length=8192)
+    agree: bool = False
+
+
+@app.get("/api/auth/google-config")
+def google_config():
+    """Public, non-secret: the GIS button needs the OAuth client id to render."""
+    return {"client_id": GOOGLE_CLIENT_ID or None}
+
+
+@app.post("/api/auth/google", dependencies=[Depends(auth_limit)])
+def auth_google(body: GoogleIn, request: Request):
+    if not (GOOGLE_CLIENT_ID and _GOOGLE_AUTH_OK):
+        raise HTTPException(503, "Google sign-in is not available right now. Please use email login.")
+    try:
+        info = _google_id_token.verify_oauth2_token(body.credential, _google_requests.Request(), GOOGLE_CLIENT_ID)
+    except Exception:
+        raise HTTPException(401, "Google sign-in failed. Please try again.")
+    if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(401, "Google sign-in failed. Please try again.")
+    if not info.get("email") or not info.get("email_verified") or not info.get("sub"):
+        raise HTTPException(401, "Google sign-in needs a verified Google email address.")
+    try:
+        user, token = accounts.google_login(info["email"].strip().lower(), info["sub"], body.agree)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    resp = JSONResponse({"user": {"email": user["email"], "role": user.get("role", "candidate")}})
+    _set_cookie(resp, request, token)
+    return resp
+
+
 @app.post("/api/auth/logout", dependencies=LIMITED)
 def auth_logout(request: Request):
     accounts.logout(request.cookies.get(COOKIE))
@@ -834,9 +878,14 @@ def robots():
 @app.get("/sitemap.xml")
 def sitemap():
     base = PUBLIC_BASE.rstrip("/")
-    urls = "".join(f"<url><loc>{base}{p}</loc></url>" for p in ("/", "/about", "/help", "/privacy", "/terms", "/cookies"))
+    urls = "".join(f"<url><loc>{base}{p}</loc></url>" for p in ("/", "/about", "/help", "/privacy", "/terms", "/cookies", "/delete-account"))
     xml = f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
     return Response(xml, media_type="application/xml")
+
+
+@app.get("/delete-account")
+def delete_account_page():
+    return FileResponse(os.path.join(STATIC, "delete-account.html"), media_type="text/html")
 
 
 @app.get("/privacy")

@@ -99,6 +99,7 @@ def _schema():
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "plan TEXT NOT NULL DEFAULT 'free'",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_id TEXT",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_role TEXT",
+        "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "google_sub TEXT",
         "CREATE TABLE IF NOT EXISTS orgs (id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_color TEXT NOT NULL, logo TEXT NOT NULL, api_key_hash TEXT, invite_code TEXT, viewer_code TEXT, created " + _REAL + " NOT NULL)",
         "CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, org_id TEXT NOT NULL, created_by TEXT NOT NULL, name TEXT NOT NULL, role_title TEXT NOT NULL, pool TEXT NOT NULL, modules TEXT NOT NULL, n_questions INTEGER NOT NULL, secs INTEGER NOT NULL, expires " + _REAL + " NOT NULL, status TEXT NOT NULL, lang TEXT NOT NULL, retention_days INTEGER NOT NULL, open_link INTEGER NOT NULL, created " + _REAL + " NOT NULL)",
         "CREATE INDEX IF NOT EXISTS campaigns_org ON campaigns (org_id, created)",
@@ -227,6 +228,37 @@ def login(email: str, password: str, role: str | None = None):
         if needs_rehash(rows[0]["pw_hash"]):
             c.run("UPDATE users SET pw_hash=? WHERE id=?", (hash_password(password), rows[0]["id"]))
         return {"id": rows[0]["id"], "email": email, "role": rows[0]["role"]}, _new_session(c, rows[0]["id"])
+
+
+# Password placeholder for accounts created through Google sign-in. It never parses
+# in verify_password, so password login stays impossible until the user sets a real
+# password through the recovery flow.
+GOOGLE_PW_PLACEHOLDER = "!google-signin-no-password"
+
+
+def google_login(email: str, sub: str, agree: bool = False):
+    """Find-or-create a user from a verified Google ID token (email + sub).
+
+    Existing Google user -> session. Existing email user -> link Google ID, session.
+    Brand-new email -> create a candidate account (requires agree=True).
+    """
+    email = _clean_email(email)
+    if not sub:
+        raise PermissionError("Google sign-in failed. Please try again.")
+    with Conn() as c:
+        rows = c.run("SELECT id, role FROM users WHERE google_sub=?", (sub,))
+        if rows:
+            return {"id": rows[0]["id"], "email": email, "role": rows[0]["role"]}, _new_session(c, rows[0]["id"])
+        rows = c.run("SELECT id, role FROM users WHERE email=?", (email,))
+        if rows:
+            c.run("UPDATE users SET google_sub=? WHERE id=?", (sub, rows[0]["id"]))
+            return {"id": rows[0]["id"], "email": email, "role": rows[0]["role"]}, _new_session(c, rows[0]["id"])
+        if not agree:
+            raise ValueError("Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.")
+        uid = uuid.uuid4().hex
+        c.run("INSERT INTO users (id, email, pw_hash, created, role, plan, google_sub) VALUES (?, ?, ?, ?, 'candidate', 'free', ?)",
+              (uid, email, GOOGLE_PW_PLACEHOLDER, time.time(), sub))
+        return {"id": uid, "email": email, "role": "candidate"}, _new_session(c, uid)
 
 
 def user_for(token: str | None):

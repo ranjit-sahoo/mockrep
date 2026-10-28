@@ -242,6 +242,14 @@ async function authGo(path,agree){$('acErr').textContent='';
 $('acLogin').onclick=()=>busy($('acLogin'),'...',()=>authGo('/api/auth/login'));
 $('acReg').onclick=()=>{if(!$('acAgree').checked){$('acErr').textContent='Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.';$('acAgree').focus();return}busy($('acReg'),'...',()=>authGo('/api/auth/register',true))};
 ['acEmail','acPw'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('acLogin').click()}}));
+// Google sign-in: rendered only when the server has an OAuth client id configured.
+(async()=>{try{const cfg=await api('/api/auth/google-config');if(!cfg||!cfg.client_id)return;
+  const wrap=$('gSignInWrap');if(!wrap)return;wrap.classList.remove('hide');
+  const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.defer=true;
+  s.onload=()=>{try{google.accounts.id.initialize({client_id:cfg.client_id,callback:async(resp)=>{$('acErr').textContent='';
+      try{await post('/api/auth/google',{credential:resp.credential,agree:$('acAgree').checked});await refreshMe()}catch(e){$('acErr').textContent=e.message}}});
+    google.accounts.id.renderButton($('gSignInBtn'),{theme:'outline',size:'large',text:'continue_with',width:280})}catch(e){}};
+  document.head.appendChild(s)}catch(e){}})();
 $('wlEmail').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('wlBtn').click()}});
 function clearPrivateDraft(){clearTimeout(rbT);RB=RB_EMPTY();try{localStorage.removeItem(RB_KEY)}catch(e){}rbFormRender();clearTimeout(rbT);try{localStorage.removeItem(RB_KEY)}catch(e){}$('resume').value='';$('jd').value='';try{sessionStorage.removeItem('mr_interview');sessionStorage.removeItem('mr_negotiation')}catch(e){}sid=null;nsid=null;ansLog=[];}
 $('acctOut').onclick=async()=>{clearPrivateDraft();await post('/api/auth/logout',{});await refreshMe();document.querySelector('[data-t=prep]').click()};
