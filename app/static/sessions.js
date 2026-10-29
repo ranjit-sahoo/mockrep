@@ -121,6 +121,7 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
       if(rec){wantMic=false;stopMic();mic.textContent='Speak my answer';paint();spkShow();return}
       if(wantMic){wantMic=false;mic.textContent='Speak my answer';paint();return}
       err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;spoken='';spkT0=Date.now();spkBox.replaceChildren();wantMic=true;mic.textContent='Stop';beginRec()}},'Speak my answer');row1.append(mic)}
+  const ansBox=h('div',{id:'sessAns','aria-live':'polite'});
   const spkBox=h('div',{id:'sessSpk','aria-live':'polite'});
   const spkShow=()=>{spkBox.replaceChildren();const m=spkAnalyze(spoken,Date.now()-spkT0);if(!m)return;
     st.speaking={wpm:m.wpm,fillers:m.ft,words:m.wc};
