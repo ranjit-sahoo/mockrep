@@ -102,6 +102,8 @@ def _schema():
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_id TEXT",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_role TEXT",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "google_sub TEXT",
+        "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "email_verified INTEGER NOT NULL DEFAULT 0",
+        "CREATE TABLE IF NOT EXISTS email_verifications (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires " + _REAL + " NOT NULL, attempts INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS orgs (id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_color TEXT NOT NULL, logo TEXT NOT NULL, api_key_hash TEXT, invite_code TEXT, viewer_code TEXT, created " + _REAL + " NOT NULL)",
         "CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, org_id TEXT NOT NULL, created_by TEXT NOT NULL, name TEXT NOT NULL, role_title TEXT NOT NULL, pool TEXT NOT NULL, modules TEXT NOT NULL, n_questions INTEGER NOT NULL, secs INTEGER NOT NULL, expires " + _REAL + " NOT NULL, status TEXT NOT NULL, lang TEXT NOT NULL, retention_days INTEGER NOT NULL, open_link INTEGER NOT NULL, created " + _REAL + " NOT NULL)",
         "CREATE INDEX IF NOT EXISTS campaigns_org ON campaigns (org_id, created)",
@@ -257,12 +259,12 @@ def google_login(email: str, sub: str, agree: bool = False):
             return {"id": rows[0]["id"], "email": email, "role": rows[0]["role"]}, _new_session(c, rows[0]["id"])
         rows = c.run("SELECT id, role FROM users WHERE email=?", (email,))
         if rows:
-            c.run("UPDATE users SET google_sub=? WHERE id=?", (sub, rows[0]["id"]))
+            c.run("UPDATE users SET google_sub=?, email_verified=1 WHERE id=?", (sub, rows[0]["id"]))
             return {"id": rows[0]["id"], "email": email, "role": rows[0]["role"]}, _new_session(c, rows[0]["id"])
         if not agree:
             raise ValueError("Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.")
         uid = uuid.uuid4().hex
-        c.run("INSERT INTO users (id, email, pw_hash, created, role, plan, google_sub) VALUES (?, ?, ?, ?, 'candidate', 'free', ?)",
+        c.run("INSERT INTO users (id, email, pw_hash, created, role, plan, google_sub, email_verified) VALUES (?, ?, ?, ?, 'candidate', 'free', ?, 1)",
               (uid, email, GOOGLE_PW_PLACEHOLDER, time.time(), sub))
         return {"id": uid, "email": email, "role": "candidate"}, _new_session(c, uid)
 
@@ -272,7 +274,7 @@ def user_for(token: str | None):
         return None
     with Conn() as c:
         rows = c.run(
-            "SELECT u.id, u.email, u.role, u.plan, u.org_id, u.org_role FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires>?",
+            "SELECT u.id, u.email, u.role, u.plan, u.org_id, u.org_role, u.email_verified FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires>?",
             (_hash_token(token), time.time()),
         )
     return rows[0] if rows else None
@@ -317,6 +319,48 @@ def delete_account(user_id: str):
         c.run("DELETE FROM users WHERE id=?", (user_id,))
 
 
+# ---------- email verification ----------
+def create_email_verification(user_id: str) -> str:
+    """Mint a 6-digit code, valid 10 minutes, at most 5 wrong attempts."""
+    code = f"{secrets.randbelow(1000000):06d}"
+    with Conn() as c:
+        c.run(
+            "INSERT INTO email_verifications(user_id, code_hash, expires, attempts) VALUES(?,?,?,0) "
+            "ON CONFLICT(user_id) DO UPDATE SET code_hash=EXCLUDED.code_hash, expires=EXCLUDED.expires, attempts=0",
+            (user_id, hash_token(code), time.time() + 600),
+        )
+    return code
+
+
+def verify_email_code(user_id: str, code: str) -> None:
+    with Conn() as c:
+        rows = c.run("SELECT code_hash, expires, attempts FROM email_verifications WHERE user_id=?", (user_id,))
+        if not rows or rows[0]["expires"] < time.time():
+            raise ValueError("That code has expired. Request a new one.")
+        if rows[0]["attempts"] >= 5:
+            raise ValueError("Too many wrong attempts. Request a new code.")
+        ok = hmac.compare_digest(rows[0]["code_hash"], hash_token((code or "").strip()))
+        if ok:
+            c.run("DELETE FROM email_verifications WHERE user_id=?", (user_id,))
+            c.run("UPDATE users SET email_verified=1 WHERE id=?", (user_id,))
+    if not ok:
+        # commit the attempt counter in its own transaction so the raise doesn't roll it back
+        with Conn() as c2:
+            c2.run("UPDATE email_verifications SET attempts=attempts+1 WHERE user_id=?", (user_id,))
+        raise ValueError("Incorrect code.")
+
+
+def mark_email_verified(user_id: str) -> None:
+    with Conn() as c:
+        c.run("UPDATE users SET email_verified=1 WHERE id=?", (user_id,))
+
+
+def is_email_verified(user_id: str) -> bool:
+    with Conn() as c:
+        rows = c.run("SELECT email_verified FROM users WHERE id=?", (user_id,))
+        return bool(rows and rows[0]["email_verified"])
+
+
 # ---------- account settings & data export ----------
 def change_password(user_id: str, current_password: str, new_password: str, keep_token_hash: str = "") -> None:
     if len(new_password or "") < 8:
@@ -344,7 +388,7 @@ def change_email(user_id: str, new_email: str, password: str) -> str:
         clash = c.run("SELECT id FROM users WHERE email=? AND id<>?", (e, user_id))
         if clash:
             raise ValueError("That email is already used by another account.")
-        c.run("UPDATE users SET email=? WHERE id=?", (e, user_id))
+        c.run("UPDATE users SET email=?, email_verified=0 WHERE id=?", (e, user_id))
     return e
 
 

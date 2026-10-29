@@ -96,3 +96,46 @@ def test_sql_injection_login_and_history():
     assert s.status_code == 200
     assert a.get("/api/history").json()["items"][0]["title"] == evil
     assert TestClient(app).post("/api/auth/login", json={"email": "inj@example.com", "password": "longenough1"}).status_code == 200
+
+
+def test_email_verification_flow():
+    from app import mailer
+    sent = []
+    old_enabled, old_send = mailer.enabled, mailer.send
+    mailer.enabled = lambda: True
+    mailer.send = lambda to, subject, text: sent.append((to, text))
+    try:
+        c = TestClient(app)
+        r = c.post("/api/auth/register", json={"agree": True, "email": "verify@example.com", "password": "longenough1"})
+        assert r.status_code == 200
+        assert len(sent) == 1 and sent[0][0] == "verify@example.com"
+        code = sent[0][1].split("code is: ")[1][:6]
+        me = c.get("/api/auth/me").json()
+        assert me["email_verification_required"] is True and me["email_verified"] is False
+        assert c.post("/api/auth/verify-email", json={"code": "000000" if code != "000000" else "111111"}).status_code == 400
+        assert c.post("/api/auth/verify-email", json={"code": code}).status_code == 200
+        assert c.get("/api/auth/me").json()["email_verified"] is True
+        assert c.post("/api/auth/resend-verification").json()["already"] is True
+    finally:
+        mailer.enabled, mailer.send = old_enabled, old_send
+
+
+def test_email_verification_attempts_capped():
+    c = _mk("verifycap@example.com")
+    with accounts.Conn() as conn:
+        uid = conn.run("SELECT id FROM users WHERE email=?", ("verifycap@example.com",))[0]["id"]
+    accounts.create_email_verification(uid)
+    for _ in range(5):
+        assert c.post("/api/auth/verify-email", json={"code": "999999" if accounts.hash_token("999999") else "999999"}).status_code == 400
+    assert c.post("/api/auth/verify-email", json={"code": "999999"}).status_code == 400
+    assert "Too many" in c.post("/api/auth/verify-email", json={"code": "999999"}).json()["detail"]
+    # resend resets the counter (mailer disabled in tests -> auto-verifies instead)
+    assert c.post("/api/auth/resend-verification").status_code == 200
+    assert accounts.is_email_verified(uid)
+
+
+def test_no_smtp_means_auto_verified():
+    c = _mk("nosmtp@example.com")
+    me = c.get("/api/auth/me").json()
+    assert me["email_verification_required"] is False
+    assert me["email_verified"] is True

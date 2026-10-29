@@ -1,5 +1,6 @@
 import hmac
 import io
+import logging
 import os
 import re
 import time
@@ -10,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import accounts
+from app import accounts, mailer
 
 try:
     from google.oauth2 import id_token as _google_id_token
@@ -692,6 +693,7 @@ def auth_register(body: AuthIn, request: Request):
         user, token = accounts.register(body.email, body.password, body.role or "candidate", body.invite or "")
     except ValueError as e:
         raise HTTPException(400, str(e))
+    _start_or_skip_verification(user["id"], user["email"])
     resp = JSONResponse({"user": {"email": user["email"], "role": user.get("role", "candidate")}})
     _set_cookie(resp, request, token)
     return resp
@@ -784,6 +786,46 @@ async def auth_google(request: Request):
     return resp
 
 
+def _start_or_skip_verification(user_id: str, email: str) -> None:
+    """Send a verification code when SMTP is configured; otherwise auto-verify
+    so self-hosted free installs without mail keep working."""
+    if not mailer.enabled():
+        accounts.mark_email_verified(user_id)
+        return
+    code = accounts.create_email_verification(user_id)
+    try:
+        mailer.send(email, "Your MockRep verification code",
+                    f"Your MockRep verification code is: {code}\n\nIt expires in 10 minutes. If you did not create or change a MockRep account, ignore this email.")
+    except Exception:
+        logging.getLogger("interviewpilot").exception("verification email failed")
+
+
+class VerifyEmailIn(BaseModel):
+    code: str = Field(max_length=10)
+
+
+@app.post("/api/auth/verify-email", dependencies=[Depends(auth_limit)])
+def verify_email_ep(body: VerifyEmailIn, request: Request):
+    u = need_user(request)
+    try:
+        accounts.verify_email_code(u["id"], body.code)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.post("/api/auth/resend-verification", dependencies=[Depends(auth_limit)])
+def resend_verification_ep(request: Request):
+    u = need_user(request)
+    if accounts.is_email_verified(u["id"]):
+        return {"ok": True, "already": True}
+    if not mailer.enabled():
+        accounts.mark_email_verified(u["id"])
+        return {"ok": True, "already": True}
+    _start_or_skip_verification(u["id"], u["email"])
+    return {"ok": True}
+
+
 class ChangePwIn(BaseModel):
     current_password: str = Field(max_length=200)
     new_password: str = Field(max_length=200)
@@ -815,6 +857,7 @@ def change_email_ep(body: ChangeEmailIn, request: Request):
         raise HTTPException(400, str(e))
     except PermissionError as e:
         raise HTTPException(403, str(e))
+    _start_or_skip_verification(u["id"], e)
     return {"ok": True, "email": e}
 
 
@@ -865,6 +908,7 @@ def logout_all(u=Depends(need_user)):
 def auth_me(request: Request):
     u = current_user(request)
     return {"user": {"email": u["email"], "role": u.get("role", "candidate"), "org_role": u.get("org_role"), "plan": u.get("plan", "free")} if u else None,
+            "email_verified": (bool(u.get("email_verified")) if u else True), "email_verification_required": mailer.enabled(),
             "entitlement": entitlements.record_for(u), "ads": entitlements.ADS,
             "persistent": accounts.using_postgres()}
 
