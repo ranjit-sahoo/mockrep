@@ -92,7 +92,7 @@ async function bankGo(ai){
     if(d.company)html+=`<h3>${esc(d.company.company)} style</h3><p class="note">${esc(d.company.note)}</p>`+d.company.questions.map(bankCard).join('')+`<h3>${esc(d.role)} questions</h3>`;
     $('bankCoOut').innerHTML=html;
     const cot=$('bankCo').value.trim();
-    if(cot&&!d.company){$('bankCoOut').insertAdjacentHTML('beforeend',`<p class="note">We do not have a curated set for ${esc(cot)} yet. <button id="bankReq" class="ghost" type="button">Ask us to add ${esc(cot)}</button></p>`);
+    if(cot&&!(d.company&&d.company.curated)){$('bankCoOut').insertAdjacentHTML('beforeend',`<p class="note">We do not have a curated set for ${esc(cot)} yet. <button id="bankReq" class="ghost" type="button">Ask us to add ${esc(cot)}</button></p>`);
       const br=$('bankReq');if(br)br.onclick=async()=>{br.disabled=true;br.textContent='Sending...';
         try{await post('/api/company-request',{company:cot});br.textContent='Noted. We add the most asked-for companies first.'}catch(x){br.disabled=false;br.textContent='Could not send - '+x.message}}}
     bankAll=d.questions;bankFilter='all';
