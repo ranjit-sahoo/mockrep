@@ -1,0 +1,11 @@
+{
+  "scope": "local ASGI synthetic, no production traffic, health route only",
+  "concurrent_tasks": 1000,
+  "statuses": {
+    "200": 1000
+  },
+  "elapsed_seconds": 1.887,
+  "p50_seconds": 1.494,
+  "p95_seconds": 1.643,
+  "caveat": "Not a socket/DB/AI/production capacity test; does not establish launch capacity."
+}

@@ -4,6 +4,7 @@ Uses the same database as accounts: Postgres when DATABASE_URL is set (so an int
 restarts and deploys on the free host), SQLite otherwise (local runs and tests).
 """
 import json
+import re
 import threading
 import time
 import uuid
@@ -47,6 +48,11 @@ def create(data: dict) -> str:
 
 
 def load(sid: str):
+    # Session IDs are generated as 24 lowercase hex chars. Malformed misses
+    # must not reach the database. Well-formed misses still require a lookup:
+    # negative-caching them would hide sessions created by another worker.
+    if not isinstance(sid, str) or not re.fullmatch(r"[0-9a-f]{24}", sid):
+        return None
     with accounts.Conn() as c:
         _ensure(c)
         c.run("DELETE FROM sessions WHERE created <= 0 OR created < ?", (time.time() - TTL_SECONDS,))
@@ -55,6 +61,8 @@ def load(sid: str):
 
 
 def save(sid: str, data: dict):
+    if not isinstance(sid, str) or not re.fullmatch(r"[0-9a-f]{24}", sid):
+        return None
     with accounts.Conn() as c:
         _ensure(c)
         c.run("UPDATE sessions SET data=? WHERE id=?", (json.dumps(data), sid))
