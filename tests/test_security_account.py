@@ -129,13 +129,56 @@ def test_email_verification_attempts_capped():
         assert c.post("/api/auth/verify-email", json={"code": "999999" if accounts.hash_token("999999") else "999999"}).status_code == 400
     assert c.post("/api/auth/verify-email", json={"code": "999999"}).status_code == 400
     assert "Too many" in c.post("/api/auth/verify-email", json={"code": "999999"}).json()["detail"]
-    # resend resets the counter (mailer disabled in tests -> auto-verifies instead)
-    assert c.post("/api/auth/resend-verification").status_code == 200
-    assert accounts.is_email_verified(uid)
+    # No SMTP must never falsely assert ownership of the address.
+    assert c.post("/api/auth/resend-verification").status_code == 503
+    assert not accounts.is_email_verified(uid)
 
 
-def test_no_smtp_means_auto_verified():
+def test_no_smtp_does_not_claim_email_ownership():
     c = _mk("nosmtp@example.com")
     me = c.get("/api/auth/me").json()
     assert me["email_verification_required"] is False
-    assert me["email_verified"] is True
+    assert me["email_verified"] is False
+
+
+def test_old_verification_code_dies_on_address_change():
+    c = _mk('swap-code@example.com')
+    with accounts.Conn() as conn:
+        uid = conn.run('SELECT id FROM users WHERE email=?', ('swap-code@example.com',))[0]['id']
+    code = accounts.create_email_verification(uid)
+    accounts.change_email(uid, 'swap-new@example.com', 'longenough1')
+    import pytest
+    with pytest.raises(ValueError):
+        accounts.verify_email_code(uid, code)
+    assert not accounts.is_email_verified(uid)
+
+
+def test_account_erasure_removes_verification_and_entitlement():
+    c = _mk('erase-extra@example.com')
+    with accounts.Conn() as conn:
+        uid = conn.run('SELECT id FROM users WHERE email=?', ('erase-extra@example.com',))[0]['id']
+    accounts.create_email_verification(uid)
+    with accounts.Conn() as conn:
+        conn.run("INSERT INTO entitlements (user_id) VALUES (?)", (uid,))
+    accounts.delete_account(uid)
+    with accounts.Conn() as conn:
+        assert not conn.run('SELECT user_id FROM email_verifications WHERE user_id=?', (uid,))
+        assert not conn.run('SELECT user_id FROM entitlements WHERE user_id=?', (uid,))
+
+
+def test_launch_wrapper_contains_no_billing_permission():
+    from pathlib import Path
+    manifest = Path('android-twa/app/src/main/AndroidManifest.xml').read_text()
+    assert 'com.android.vending.BILLING' not in manifest
+
+
+def test_google_signup_requires_age_confirmation(monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, 'GOOGLE_CLIENT_ID', 'test-client')
+    monkeypatch.setattr(main, '_GOOGLE_AUTH_OK', True)
+    monkeypatch.setattr(main._google_id_token, 'verify_oauth2_token', lambda *a: {
+        'iss': 'https://accounts.google.com', 'email': 'age-google@example.com',
+        'email_verified': True, 'sub': 'google-age-test'})
+    c = TestClient(app)
+    assert c.post('/api/auth/google', json={'credential':'fake','agree':True}).status_code == 400
+    assert c.post('/api/auth/google', json={'credential':'fake','agree':True,'age18':True}).status_code == 200

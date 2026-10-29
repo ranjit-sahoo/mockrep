@@ -1,35 +1,24 @@
-# MockRep Premium - design (billing DISABLED by default)
+# MockRep premium plan - NOT READY, NOT ENABLED
 
-Status: prepared, not active. Payments stay OFF until Ranjit explicitly turns them on.
-One switch turns it on: set `BILLING_ENABLED=true` on the server + publish the Android
-update with billing support + activate the products in Play Console. No code push needed.
+Owner decision, 2026-10-30 04:46 IST:
+- At Play launch all features are free for the first 2-3 months, with no charges anywhere.
+- Later prices: yearly INR 499; lifetime INR 999. No monthly product.
+- Premium must be a separate build, never included in the free-launch build.
+- Ads and payments remain OFF. No Play publication is authorized.
+- Exact activation date remains undecided. Do not start billing automatically.
 
-## Architecture (zero recurring cost)
-- Android TWA wrapper uses the Digital Goods API (`getDigitalGoodsService`); no extra SDK.
-  The only manifest change is `<uses-permission android:name="com.android.vending.BILLING" />`.
-- Client calls `POST /api/billing/verify` with the purchase token. The server verifies it
-  with the Google Play Developer API (`purchases.subscriptionsv2.get` / `purchases.products.get`)
-  using a Play service account before granting entitlement. Purchase tokens are never trusted
-  from the client alone (checklist item 24).
-- Entitlements live in the existing `entitlements.py` record (`plan=premium`), expiry from the
-  Play response. Existing `users.plan` column already supports it.
-- Web (non-Play) purchases: NOT planned - Play app only, so no card processing, no refunds to
-  manage, no Stripe fees. Free web tier stays as-is.
+The premium-billing branch is a prototype, not a release. It must not be enabled.
+The free-launch Android manifest has no billing permission or billing SDK.
 
-## Cancellation (Play policy + Ranjit's item 11)
-- The paywall and the account drawer always show: "Cancel anytime: Play Store > Profile >
-  Payments & subscriptions" with a direct link to
-  https://play.google.com/store/account/subscriptions
-- Cancellation never locks the user out early: entitlement lasts to the paid-through date
-  from Google's response.
-- 24-hour pre-renewal notice: the server stores the next renewal time from the Play API; the
-  push-reminder worker (same web-push infra as practise reminders) sends "Your MockRep Premium
-  renews tomorrow - manage it here" 24h before. Google also emails receipts at each charge.
+Before premium is ready:
+- Bind each Play token to the authenticated account and reject replay across accounts.
+- Validate product, package, account binding, purchase state and expiry from Google's response.
+- Reject missing fields, canceled/refunded purchases and expired subscriptions; recheck revocations.
+- Grant paid-through access when auto-renewal is canceled, without charging again.
+- Acknowledge verified purchases through the supported Play flow.
+- Add a working cancellation-management link and implement the 24-hour renewal notice, not merely its copy.
+- Prices displayed must come from Play product details and match INR 499 yearly / INR 999 lifetime.
+- Finish six independent end-to-end and security rounds including adverse cases.
+- Obtain owner approval for activation timing and confirm the product setup in Play Console.
 
-## Refunds & price display
-- Prices shown only from the Play Billing SKU details (local currency), never hardcoded.
-- Refund policy line on the paywall: handled by Google Play's standard refund flow; link shown.
-
-## Data safety
-- Play processes payment data; MockRep never sees card details. Data safety form updated to
-  reflect purchase history when enabled.
+No payment-method or purchase testing against real money is authorized by this plan.

@@ -325,6 +325,8 @@ def delete_account(user_id: str):
                 c.run("DELETE FROM %s WHERE org_id=?" % t, (org,))
             c.run("UPDATE users SET org_id=NULL, org_role=NULL, role='candidate' WHERE org_id=? AND id<>?", (org, user_id))
             c.run("DELETE FROM orgs WHERE id=?", (org,))
+        c.run("DELETE FROM email_verifications WHERE user_id=?", (user_id,))
+        c.run("DELETE FROM entitlements WHERE user_id=?", (user_id,))
         c.run("DELETE FROM history WHERE user_id=?", (user_id,))
         c.run("DELETE FROM progress WHERE user_id=?", (user_id,))
         c.run("DELETE FROM progress_speaking WHERE user_id=?", (user_id,))
@@ -354,21 +356,31 @@ def create_email_verification(user_id: str) -> str:
 
 
 def verify_email_code(user_id: str, code: str) -> None:
+    # Reserve one attempt atomically before comparing, including across workers.
+    # A new code cannot be consumed or charged by an older verification request.
+    error = None
     with Conn() as c:
         rows = c.run("SELECT code_hash, expires, attempts FROM email_verifications WHERE user_id=?", (user_id,))
         if not rows or rows[0]["expires"] < time.time():
-            raise ValueError("That code has expired. Request a new one.")
-        if rows[0]["attempts"] >= 5:
-            raise ValueError("Too many wrong attempts. Request a new code.")
-        ok = hmac.compare_digest(rows[0]["code_hash"], hash_token((code or "").strip()))
-        if ok:
-            c.run("DELETE FROM email_verifications WHERE user_id=?", (user_id,))
-            c.run("UPDATE users SET email_verified=1 WHERE id=?", (user_id,))
-    if not ok:
-        # commit the attempt counter in its own transaction so the raise doesn't roll it back
-        with Conn() as c2:
-            c2.run("UPDATE email_verifications SET attempts=attempts+1 WHERE user_id=?", (user_id,))
-        raise ValueError("Incorrect code.")
+            error = "That code has expired. Request a new one."
+        else:
+            expected = rows[0]["code_hash"]
+            reserved = c.run("UPDATE email_verifications SET attempts=attempts+1 "
+                             "WHERE user_id=? AND code_hash=? AND expires>? AND attempts<5 RETURNING attempts",
+                             (user_id, expected, time.time()))
+            if not reserved:
+                error = "Too many wrong attempts. Request a new code."
+            elif not hmac.compare_digest(expected, hash_token((code or "").strip())):
+                error = "Incorrect code."
+            else:
+                consumed = c.run("DELETE FROM email_verifications WHERE user_id=? AND code_hash=? RETURNING user_id",
+                                 (user_id, expected))
+                if consumed:
+                    c.run("UPDATE users SET email_verified=1 WHERE id=?", (user_id,))
+                else:
+                    error = "That code is no longer valid. Request a new one."
+    if error:
+        raise ValueError(error)
 
 
 def mark_email_verified(user_id: str) -> None:
@@ -409,12 +421,13 @@ def change_email(user_id: str, new_email: str, password: str) -> str:
         clash = c.run("SELECT id FROM users WHERE email=? AND id<>?", (e, user_id))
         if clash:
             raise ValueError("That email is already used by another account.")
+        c.run("DELETE FROM email_verifications WHERE user_id=?", (user_id,))
         c.run("UPDATE users SET email=?, email_verified=0 WHERE id=?", (e, user_id))
     return e
 
 
 def export_data(user_id: str) -> dict:
-    """Everything we hold about the user, in one JSON document (DPDP data-access right)."""
+    """Account profile, saved history and practice scores. Other records require a rights request."""
     with Conn() as c:
         me = c.run("SELECT email, role, created FROM users WHERE id=?", (user_id,))
         hist = c.run("SELECT id, kind, title, data, created FROM history WHERE user_id=? ORDER BY created DESC", (user_id,))

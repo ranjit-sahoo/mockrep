@@ -182,7 +182,9 @@ def install(app) -> None:
     async def _count(request: Request, call_next):
         resp = await call_next(request)
         metric = classify(request.method, request.url.path, resp.status_code)
-        if metric:
+        # No collection without an explicit client consent marker. No consent UI
+        # is offered in the launch build, so analytics remain off.
+        if False and metric:  # launch build: analytics collection disabled unconditionally
             asyncio.get_running_loop().run_in_executor(None, record, metric, client_key(request), request.headers.get("user-agent", ""))
         return resp
 

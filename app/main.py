@@ -759,7 +759,7 @@ async def auth_google(request: Request):
         except Exception:
             raise HTTPException(400, "Google sign-in failed. Please try again.")
         credential = str(data.get("credential", ""))[:8192]
-        agree = bool(data.get("agree"))
+        agree = data.get("agree") is True and data.get("age18") is True
     try:
         info = _google_id_token.verify_oauth2_token(credential, _google_requests.Request(), GOOGLE_CLIENT_ID)
     except Exception:
@@ -793,8 +793,7 @@ def _start_or_skip_verification(user_id: str, email: str) -> None:
     """Send a verification code when SMTP is configured; otherwise auto-verify
     so self-hosted free installs without mail keep working."""
     if not mailer.enabled():
-        accounts.mark_email_verified(user_id)
-        return
+        return  # No mail delivery means unverified, not proof of address ownership.
     code = accounts.create_email_verification(user_id)
     try:
         mailer.send(email, "Your MockRep verification code",
@@ -823,8 +822,7 @@ def resend_verification_ep(request: Request):
     if accounts.is_email_verified(u["id"]):
         return {"ok": True, "already": True}
     if not mailer.enabled():
-        accounts.mark_email_verified(u["id"])
-        return {"ok": True, "already": True}
+        raise HTTPException(503, "Email verification is not available yet. You can keep using the free tools.")
     _start_or_skip_verification(u["id"], u["email"])
     return {"ok": True}
 
