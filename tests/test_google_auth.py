@@ -145,3 +145,51 @@ def test_csp_allows_only_google_gsi_externally():
     assert "https://accounts.google.com/gsi/client" in csp
     assert "https://accounts.google.com/gsi/" in csp
     assert "unsafe-inline" not in [p for p in csp.split(";") if p.strip().startswith("script-src")][0]
+
+
+FORM = {"content-type": "application/x-www-form-urlencoded"}
+
+
+def test_redirect_mode_rejects_bad_csrf(monkeypatch):
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
+    c = fresh()
+    r = c.post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "abc"},
+               cookies={"g_csrf_token": "different"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 400
+    r = c.post("/api/auth/google", data={"credential": "tok"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 400
+
+
+def test_redirect_mode_creates_account_with_consent_cookie(monkeypatch):
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-r1", email="red1@gmail.com")))
+    c = fresh()
+    r = c.post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "xyz"},
+               cookies={"g_csrf_token": "xyz", "mr_gconsent": "1"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/#acct"
+    assert "ip_session" in r.headers.get("set-cookie", "")
+    assert c.get("/api/auth/me").json()["user"]["email"] == "red1@gmail.com"
+
+
+def test_redirect_mode_new_user_without_consent_bounces(monkeypatch):
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-r2", email="red2@gmail.com")))
+    c = fresh()
+    r = c.post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "xyz"},
+               cookies={"g_csrf_token": "xyz"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 303 and "gerr=consent" in r.headers["location"]
+    assert c.get("/api/auth/me").json()["user"] is None
+
+
+def test_redirect_mode_links_existing_account_without_consent(monkeypatch):
+    c = fresh()
+    c.post("/api/auth/register", json={"email": "red3@gmail.com", "password": "longenough1", "agree": True})
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-r3", email="red3@gmail.com")))
+    r = c.post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "xyz"},
+               cookies={"g_csrf_token": "xyz"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/#acct"
+
+
+def test_redirect_mode_bad_token_bounces(monkeypatch):
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
+    r = fresh().post("/api/auth/google", data={"credential": "bad", "g_csrf_token": "xyz"},
+                     cookies={"g_csrf_token": "xyz"}, headers=FORM, follow_redirects=False)
+    assert r.status_code == 303 and "gerr=google" in r.headers["location"]

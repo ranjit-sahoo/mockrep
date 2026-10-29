@@ -1,10 +1,11 @@
+import hmac
 import io
 import os
 import re
 import time
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -668,23 +669,63 @@ def google_config():
     return {"client_id": GOOGLE_CLIENT_ID or None}
 
 
+GOOGLE_CONSENT_COOKIE = "mr_gconsent"
+
+
+def _google_redirect_error(kind: str) -> RedirectResponse:
+    return RedirectResponse(f"/?gerr={kind}#acct", status_code=303)
+
+
 @app.post("/api/auth/google", dependencies=[Depends(auth_limit)])
-def auth_google(body: GoogleIn, request: Request):
+async def auth_google(request: Request):
+    """Google sign-in, two shapes: a JSON POST from the GIS popup callback, or a
+    form POST from GIS redirect mode (same-tab flow, which also works in WebViews
+    where popups are unreliable). Redirect mode carries consent in a cookie the
+    page sets when the terms box is ticked, and Google’s own g_csrf_token
+    double-submit pair."""
     if not (GOOGLE_CLIENT_ID and _GOOGLE_AUTH_OK):
         raise HTTPException(503, "Google sign-in is not available right now. Please use email login.")
+    ct = request.headers.get("content-type", "")
+    redirect_mode = ct.startswith("application/x-www-form-urlencoded") or ct.startswith("multipart/form-data")
+    if redirect_mode:
+        form = await request.form()
+        credential = str(form.get("credential", ""))[:8192]
+        csrf_body = str(form.get("g_csrf_token", ""))
+        if not csrf_body or not hmac.compare_digest(csrf_body, request.cookies.get("g_csrf_token", "")):
+            raise HTTPException(400, "Google sign-in failed. Please try again.")
+        agree = request.cookies.get(GOOGLE_CONSENT_COOKIE) == "1"
+    else:
+        try:
+            data = await request.json()
+        except Exception:
+            raise HTTPException(400, "Google sign-in failed. Please try again.")
+        credential = str(data.get("credential", ""))[:8192]
+        agree = bool(data.get("agree"))
     try:
-        info = _google_id_token.verify_oauth2_token(body.credential, _google_requests.Request(), GOOGLE_CLIENT_ID)
+        info = _google_id_token.verify_oauth2_token(credential, _google_requests.Request(), GOOGLE_CLIENT_ID)
     except Exception:
+        if redirect_mode:
+            return _google_redirect_error("google")
         raise HTTPException(401, "Google sign-in failed. Please try again.")
     if info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        if redirect_mode:
+            return _google_redirect_error("google")
         raise HTTPException(401, "Google sign-in failed. Please try again.")
     if not info.get("email") or not info.get("email_verified") or not info.get("sub"):
+        if redirect_mode:
+            return _google_redirect_error("google")
         raise HTTPException(401, "Google sign-in needs a verified Google email address.")
     try:
-        user, token = accounts.google_login(info["email"].strip().lower(), info["sub"], body.agree)
+        user, token = accounts.google_login(info["email"].strip().lower(), info["sub"], agree)
     except ValueError as e:
+        if redirect_mode:
+            return _google_redirect_error("consent")
         raise HTTPException(400, str(e))
-    resp = JSONResponse({"user": {"email": user["email"], "role": user.get("role", "candidate")}})
+    if redirect_mode:
+        resp = RedirectResponse("/#acct", status_code=303)
+        resp.delete_cookie(GOOGLE_CONSENT_COOKIE, path="/")
+    else:
+        resp = JSONResponse({"user": {"email": user["email"], "role": user.get("role", "candidate")}})
     _set_cookie(resp, request, token)
     return resp
 
