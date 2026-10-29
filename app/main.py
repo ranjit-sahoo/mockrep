@@ -50,6 +50,19 @@ LIMITED = [Depends(rate_limit)]
 _signup_limiter = RateLimiter(limit=int(os.environ.get("SIGNUPS_PER_DAY", "10")), window=86400.0)
 _fail_limiter = FailLimiter(limit=5, window=1800.0)
 _waitlist_limiter = RateLimiter(limit=int(os.environ.get("WAITLIST_PER_DAY", "10")), window=86400.0)
+
+_user_ai_limiter = RateLimiter(limit=int(os.environ.get("AI_DAILY_PER_USER", "40")), window=86400.0)
+
+
+def user_ai_gate(request: Request):
+    """Per-account daily AI cap, on top of the per-IP caps. Signed-in users only; guests keep the IP caps."""
+    u = current_user(request)
+    if u and not _user_ai_limiter.check("u:" + u["id"]):
+        raise HTTPException(429, "You have reached today's free limit for AI tools on this account. Try again tomorrow.")
+    return True
+
+
+USER_AI = [Depends(user_ai_gate)]
 _report_limiter = RateLimiter(limit=int(os.environ.get("REPORTS_PER_DAY", "10")), window=86400.0)
 _company_req_limiter = RateLimiter(limit=int(os.environ.get("COMPANY_REQUESTS_PER_DAY", "10")), window=86400.0)
 _auth_limiter = RateLimiter(limit=int(os.environ.get("AUTH_RATE_PER_MIN", "10")), window=60.0)
@@ -60,6 +73,10 @@ PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://mockrep.onrender.com")
 def auth_limit(request: Request):
     if not _auth_limiter.check(client_key(request)):
         raise HTTPException(429, "Too many attempts. Please wait a minute and try again.")
+
+
+def _token_hash(request: Request) -> str:
+    return accounts.hash_token(request.cookies.get(COOKIE, ""))
 
 
 def current_user(request: Request):
@@ -365,7 +382,7 @@ def detect(body: DetectIn):
     return services.detect_country(body.resume, body.jd)
 
 
-@app.post("/api/resume/review", dependencies=LIMITED)
+@app.post("/api/resume/review", dependencies=LIMITED + USER_AI)
 def resume_review(
     role: str = Form(...),
     resume: str = Form(""),
@@ -378,14 +395,14 @@ def resume_review(
     return services.review_resume(_need_resume(text), _need_role(role), jd, _cc(request, country))
 
 
-@app.post("/api/match", dependencies=LIMITED)
+@app.post("/api/match", dependencies=LIMITED + USER_AI)
 def match(body: MatchIn, request: Request):
     if len(body.jd.strip()) < 30:
         raise HTTPException(400, "Paste the job description to compare against.")
     return services.match_jd(_need_resume(body.resume), _need_role(body.role), body.jd, _cc(request, body.country))
 
 
-@app.post("/api/session", dependencies=LIMITED)
+@app.post("/api/session", dependencies=LIMITED + USER_AI)
 def start(body: StartIn, request: Request):
     return services.start_session(_resume_or_blank(body.resume), _need_role(body.role), body.jd, _cc(request, body.country), body.level, body.followups, body.count)
 
@@ -399,7 +416,7 @@ def interview_state(sid: str):
     return {"done": False, "session_id": sid, "question": ({"type":"follow-up","question":pending["question"],"n":pending["n"]} if pending else s["questions"][s["index"]]), "number": s["index"]+1, "total": len(s["questions"]), "followups": s.get("followups", True), "pending": bool(pending)}
 
 
-@app.post("/api/session/{sid}/answer", dependencies=LIMITED)
+@app.post("/api/session/{sid}/answer", dependencies=LIMITED + USER_AI)
 def answer(sid: str, body: AnswerIn):
     if not body.answer.strip():
         raise HTTPException(400, "Answer is empty.")
@@ -425,7 +442,7 @@ def report(sid: str, request: Request):
     return rep
 
 
-@app.post("/api/negotiation", dependencies=LIMITED)
+@app.post("/api/negotiation", dependencies=LIMITED + USER_AI)
 def nego_start(body: NegoStartIn, request: Request):
     return services.start_negotiation(_resume_or_blank(body.resume), _need_role(body.role), _cc(request, body.country), body.current)
 
@@ -448,7 +465,7 @@ def nego_report(sid: str):
     return _guard(services.negotiation_report, sid)
 
 
-@app.post("/api/recruiter/screen", dependencies=LIMITED)
+@app.post("/api/recruiter/screen", dependencies=LIMITED + USER_AI)
 def screen(body: ScreenIn, request: Request):
     return _guard(
         services.screen_candidates, [c.model_dump() for c in body.candidates], _need_role(body.role), body.jd, _cc(request, body.country)
@@ -467,7 +484,7 @@ def bank_roles():
     return {"roles": bank.roles()}
 
 
-@app.post("/api/bank", dependencies=LIMITED)
+@app.post("/api/bank", dependencies=LIMITED + USER_AI)
 def question_bank(body: BankIn, request: Request):
     """Curated role questions (instant) plus optional AI company-specific questions."""
     if not body.role.strip() and not body.company.strip():
@@ -529,22 +546,22 @@ class SummaryIn(BaseModel):
     country: str = "US"
 
 
-@app.post("/api/builder/parse", dependencies=LIMITED)
+@app.post("/api/builder/parse", dependencies=LIMITED + USER_AI)
 def builder_parse(body: DetectIn):
     return builder.parse(_need_resume(body.resume))
 
 
-@app.post("/api/builder/polish", dependencies=LIMITED)
+@app.post("/api/builder/polish", dependencies=LIMITED + USER_AI)
 def builder_polish(body: PolishIn, request: Request):
     return {"bullets": _guard(builder.polish, body.role, body.bullets, _cc(request, body.country))}
 
 
-@app.post("/api/builder/summary", dependencies=LIMITED)
+@app.post("/api/builder/summary", dependencies=LIMITED + USER_AI)
 def builder_summary(body: SummaryIn, request: Request):
     return {"summary": _guard(builder.summary, body.role, body.facts, _cc(request, body.country))}
 
 
-@app.post("/api/prep", dependencies=LIMITED)
+@app.post("/api/prep", dependencies=LIMITED + USER_AI)
 def prep_pack(body: StartIn, request: Request):
     """The hero flow: tailored questions with model answers (and coding questions) from resume + JD."""
     return prep.build(_need_resume(body.resume), _need_role(body.role), body.jd, _cc(request, body.country))
@@ -561,7 +578,7 @@ class ResumeQIn(BaseModel):
     country: str = "US"
 
 
-@app.post("/api/prep/resume-questions", dependencies=LIMITED)
+@app.post("/api/prep/resume-questions", dependencies=LIMITED + USER_AI)
 def prep_resume_questions(body: ResumeQIn, request: Request):
     """Questions an interviewer would ask from the resume alone; no JD required."""
     return _guard(prep.resume_questions, _need_resume(body.resume), _cc(request, body.country))
@@ -584,14 +601,14 @@ class CardIn(BaseModel):
     name: str = Field("", max_length=40)
 
 
-@app.post("/api/star", dependencies=LIMITED)
+@app.post("/api/star", dependencies=LIMITED + USER_AI)
 def star_build(body: StarIn, request: Request):
     if len(body.experience.strip()) < 30:
         raise HTTPException(400, "Describe your experience in a few sentences (30+ characters).")
     return star.build(body.experience, body.question, body.role, _cc(request, body.country))
 
 
-@app.post("/api/company-brief", dependencies=LIMITED)
+@app.post("/api/company-brief", dependencies=LIMITED + USER_AI)
 def company_brief(body: BriefIn, request: Request):
     if len(body.company.strip()) < 2:
         raise HTTPException(400, "Enter a company name.")
@@ -765,6 +782,47 @@ async def auth_google(request: Request):
         resp = JSONResponse({"user": {"email": user["email"], "role": user.get("role", "candidate")}})
     _set_cookie(resp, request, token)
     return resp
+
+
+class ChangePwIn(BaseModel):
+    current_password: str = Field(max_length=200)
+    new_password: str = Field(max_length=200)
+
+
+@app.post("/api/auth/change-password", dependencies=[Depends(auth_limit)])
+def change_password_ep(body: ChangePwIn, request: Request):
+    u = need_user(request)
+    try:
+        accounts.change_password(u["id"], body.current_password, body.new_password, _token_hash(request))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    return {"ok": True}
+
+
+class ChangeEmailIn(BaseModel):
+    new_email: str = Field(max_length=320)
+    password: str = Field(max_length=200)
+
+
+@app.post("/api/auth/change-email", dependencies=[Depends(auth_limit)])
+def change_email_ep(body: ChangeEmailIn, request: Request):
+    u = need_user(request)
+    try:
+        e = accounts.change_email(u["id"], body.new_email, body.password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    return {"ok": True, "email": e}
+
+
+@app.get("/api/account/export", dependencies=LIMITED)
+def account_export(request: Request):
+    u = need_user(request)
+    data = accounts.export_data(u["id"])
+    return JSONResponse(data, headers={"Content-Disposition": "attachment; filename=mockrep-my-data.json"})
 
 
 @app.post("/api/auth/logout", dependencies=LIMITED)

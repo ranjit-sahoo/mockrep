@@ -159,6 +159,10 @@ def _clean_email(email: str) -> str:
     return e
 
 
+def hash_token(t: str) -> str:
+    return _hash_token(t)
+
+
 def _hash_token(t: str) -> str:
     return hashlib.sha256(t.encode()).hexdigest()
 
@@ -311,6 +315,62 @@ def delete_account(user_id: str):
             c.run("DELETE FROM waitlist WHERE email=?", (email,))
             c.run("DELETE FROM company_requests WHERE email=?", (email,))
         c.run("DELETE FROM users WHERE id=?", (user_id,))
+
+
+# ---------- account settings & data export ----------
+def change_password(user_id: str, current_password: str, new_password: str, keep_token_hash: str = "") -> None:
+    if len(new_password or "") < 8:
+        raise ValueError("Password must be at least 8 characters.")
+    with Conn() as c:
+        rows = c.run("SELECT pw_hash FROM users WHERE id=?", (user_id,))
+        if not rows or not verify_password(current_password or "", rows[0]["pw_hash"]):
+            raise PermissionError("Current password is incorrect.")
+        c.run("UPDATE users SET pw_hash=? WHERE id=?", (hash_password(new_password), user_id))
+        # Every other session dies; the one making the change stays signed in.
+        if keep_token_hash:
+            c.run("DELETE FROM auth_sessions WHERE user_id=? AND token_hash<>?", (user_id, keep_token_hash))
+        else:
+            c.run("DELETE FROM auth_sessions WHERE user_id=?", (user_id,))
+
+
+def change_email(user_id: str, new_email: str, password: str) -> str:
+    e = (new_email or "").strip().lower()
+    if not e or "@" not in e or len(e) > 254:
+        raise ValueError("Please enter a valid email address.")
+    with Conn() as c:
+        rows = c.run("SELECT pw_hash FROM users WHERE id=?", (user_id,))
+        if not rows or not verify_password(password or "", rows[0]["pw_hash"]):
+            raise PermissionError("Password is incorrect.")
+        clash = c.run("SELECT id FROM users WHERE email=? AND id<>?", (e, user_id))
+        if clash:
+            raise ValueError("That email is already used by another account.")
+        c.run("UPDATE users SET email=? WHERE id=?", (e, user_id))
+    return e
+
+
+def export_data(user_id: str) -> dict:
+    """Everything we hold about the user, in one JSON document (DPDP data-access right)."""
+    with Conn() as c:
+        me = c.run("SELECT email, role, created FROM users WHERE id=?", (user_id,))
+        hist = c.run("SELECT id, kind, title, data, created FROM history WHERE user_id=? ORDER BY created DESC", (user_id,))
+        prog = c.run("SELECT created, role, overall, scores FROM progress WHERE user_id=? ORDER BY created", (user_id,))
+        spk = c.run("SELECT created, wpm, fillers, words FROM progress_speaking WHERE user_id=? ORDER BY created", (user_id,))
+    if not me:
+        raise PermissionError("Not found.")
+    items = []
+    for h in hist:
+        try:
+            h["data"] = json.loads(h["data"])
+        except Exception:
+            pass
+        items.append(h)
+    return {
+        "exported_at": time.time(),
+        "account": {"email": me[0]["email"], "role": me[0]["role"], "created": me[0]["created"]},
+        "history": items,
+        "progress": prog,
+        "speaking_progress": spk,
+    }
 
 
 # ---------- history ----------
