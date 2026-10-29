@@ -1,0 +1,24 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'com.ranjitsahoo.mockrep'
+ compileSdk 36
+ buildToolsVersion "36.0.0"
+ defaultConfig { applicationId 'com.ranjitsahoo.mockrep'; minSdk 23; targetSdk 36; versionCode 7; versionName '1.0.6' }
+ // Release signing comes ONLY from environment - never commit key or password.
+ // Set MOCKREP_KEYSTORE (path to keystore) and MOCKREP_PASSWORD_FILE (path to a file holding the password).
+ signingConfigs { release {
+  def ks = System.getenv('MOCKREP_KEYSTORE')
+  def pf = System.getenv('MOCKREP_PASSWORD_FILE')
+  if (ks && pf) {
+   storeFile file(ks)
+   storePassword new File(pf).text.trim()
+   keyAlias 'mockrep'
+   keyPassword storePassword
+  }
+ } }
+ buildTypes {
+  release { if (signingConfigs.release.storeFile != null) { signingConfig signingConfigs.release }; minifyEnabled false; debuggable false }
+ }
+}
+dependencies { implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0' }
+configurations.all { resolutionStrategy.force 'androidx.browser:browser:1.8.0' }

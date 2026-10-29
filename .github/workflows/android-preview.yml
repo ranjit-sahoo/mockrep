@@ -1,0 +1,25 @@
+name: android-preview-apk
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-web-preview-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build debug APK (TWA wrapper, no signing secrets needed)
+        working-directory: android-twa
+        run: gradle --no-daemon assembleDebug
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mockrep-web-preview-apk
+          path: android-twa/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

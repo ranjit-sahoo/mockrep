@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <!-- Premium billing (Digital Goods API via TWA). Inert while the server's BILLING_ENABLED is off. -->
+ <uses-permission android:name="com.android.vending.BILLING" />
+ <application android:label="MockRep" android:icon="@mipmap/ic_launcher" android:allowBackup="false" android:usesCleartextTraffic="false" android:theme="@style/AppTheme">
+  <meta-data android:name="asset_statements" android:resource="@string/asset_statements"/>
+  <activity android:name="com.google.androidbrowserhelper.trusted.LauncherActivity" android:exported="true" android:launchMode="singleTask">
+   <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL" android:value="https://mockrep.onrender.com/#sessions"/>
+   <meta-data android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR" android:resource="@color/themeColor"/>
+   <meta-data android:name="android.support.customtabs.trusted.NAVIGATION_BAR_COLOR" android:resource="@color/themeColor"/>
+   <meta-data android:name="android.support.customtabs.trusted.DISPLAY_MODE" android:value="standalone"/>
+   <meta-data android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY" android:value="customtabs"/>
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+  </activity>
+ </application>
+</manifest>

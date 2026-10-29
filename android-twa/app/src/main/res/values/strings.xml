@@ -1,0 +1,5 @@
+<resources>
+ <color name="themeColor">#0b1020</color>
+ <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:windowBackground">#0b1020</item><item name="android:statusBarColor">#0b1020</item></style>
+ <string name="asset_statements">[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"web\",\"site\":\"https://mockrep.onrender.com\"}}]</string>
+</resources>
