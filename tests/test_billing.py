@@ -41,7 +41,7 @@ def test_verify_grants_premium_for_active_subscription():
         "lineItems": [{"expiryTime": "2099-01-01T00:00:00Z"}],
     }
     try:
-        r = c.post("/api/billing/verify", json={"product_id": "mockrep_premium_monthly", "purchase_token": "tok123"})
+        r = c.post("/api/billing/verify", json={"product_id": "mockrep_premium_yearly", "purchase_token": "tok123"})
         assert r.status_code == 200, r.text
         ent = r.json()["entitlement"]
         assert ent["plan_id"] == "premium" and ent["state"] == "active" and ent["source"] == "play"
@@ -61,7 +61,7 @@ def test_inactive_subscription_and_unknown_product_rejected():
     billing._play_get = lambda url, token: {"subscriptionState": "SUBSCRIPTION_STATE_CANCELED"}
     try:
         assert c.post("/api/billing/verify", json={"product_id": "nope", "purchase_token": "t"}).status_code == 400
-        r = c.post("/api/billing/verify", json={"product_id": "mockrep_premium_monthly", "purchase_token": "t"})
+        r = c.post("/api/billing/verify", json={"product_id": "mockrep_premium_yearly", "purchase_token": "t"})
         assert r.status_code == 403
         assert c.get("/api/auth/me").json()["user"]["plan"] == "free"
     finally:
@@ -72,6 +72,6 @@ def test_billing_verify_requires_login():
     old = billing.ENABLED
     billing.ENABLED = True
     try:
-        assert TestClient(app).post("/api/billing/verify", json={"product_id": "mockrep_premium_monthly", "purchase_token": "t"}).status_code == 401
+        assert TestClient(app).post("/api/billing/verify", json={"product_id": "mockrep_premium_yearly", "purchase_token": "t"}).status_code == 401
     finally:
         billing.ENABLED = old

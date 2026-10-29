@@ -17,10 +17,13 @@ import urllib.request
 
 log = logging.getLogger("interviewpilot")
 
-ENABLED = os.environ.get("BILLING_ENABLED", "").strip().lower() in ("1", "true", "yes")
+# Security hold: this prototype must never be enabled by an environment change.
+# Remove this hold only after account/token binding, acknowledgment, lifecycle
+# verification and six independent end-to-end/security rounds are implemented.
+ENABLED = False
 PACKAGE = "com.ranjitsahoo.mockrep"
 PRODUCTS = {
-    "mockrep_premium_monthly": "subscription",
+    "mockrep_premium_yearly": "subscription",
     "mockrep_premium_lifetime": "inapp",
 }
 _ACTIVE_SUB_STATES = {"SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"}
