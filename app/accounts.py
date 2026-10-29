@@ -289,7 +289,8 @@ def cancel_subscription(user_id: str) -> None:
 def delete_account(user_id: str):
     cancel_subscription(user_id)
     with Conn() as c:
-        me = c.run("SELECT org_id, org_role FROM users WHERE id=?", (user_id,))
+        me = c.run("SELECT org_id, org_role, email FROM users WHERE id=?", (user_id,))
+        email = ((me[0]["email"] or "").strip().lower()) if me else ""
         if me and me[0]["org_role"] == "owner":
             org = me[0]["org_id"]
             c.run("DELETE FROM attempts WHERE campaign_id IN (SELECT id FROM campaigns WHERE org_id=?)", (org,))
@@ -301,6 +302,14 @@ def delete_account(user_id: str):
         c.run("DELETE FROM progress WHERE user_id=?", (user_id,))
         c.run("DELETE FROM progress_speaking WHERE user_id=?", (user_id,))
         c.run("DELETE FROM auth_sessions WHERE user_id=?", (user_id,))
+        c.run("CREATE TABLE IF NOT EXISTS account_recovery (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL)")
+        c.run("DELETE FROM account_recovery WHERE user_id=?", (user_id,))
+        c.run("CREATE TABLE IF NOT EXISTS company_requests (id INTEGER PRIMARY KEY "
+              + ("GENERATED ALWAYS AS IDENTITY" if using_postgres() else "AUTOINCREMENT")
+              + ", created DOUBLE PRECISION NOT NULL, company TEXT NOT NULL, email TEXT NOT NULL DEFAULT '')")
+        if email:
+            c.run("DELETE FROM waitlist WHERE email=?", (email,))
+            c.run("DELETE FROM company_requests WHERE email=?", (email,))
         c.run("DELETE FROM users WHERE id=?", (user_id,))
 
 

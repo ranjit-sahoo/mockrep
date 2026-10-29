@@ -15,11 +15,40 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
 
+from app import accounts
+
 FONTS = os.path.join(os.path.dirname(__file__), "static", "fonts")
 import hashlib as _hl
 
 _raw = os.environ.get("CARD_SECRET") or os.environ.get("NEBIUS_API_KEY") or secrets.token_hex(16)
 _SECRET = _hl.sha256(b"interviewpilot-card-v1:" + _raw.encode()).digest()  # derived, never the raw API key
+
+
+def _ensure_blocked(c):
+    c.run(
+        "CREATE TABLE IF NOT EXISTS blocked_cards (token_hash TEXT PRIMARY KEY, created DOUBLE PRECISION NOT NULL)"
+        if accounts.using_postgres()
+        else
+        "CREATE TABLE IF NOT EXISTS blocked_cards (token_hash TEXT PRIMARY KEY, created REAL NOT NULL)"
+    )
+
+
+def _tok_hash(token: str) -> str:
+    return _hl.sha256(("cardblock-v1:" + token).encode()).hexdigest()
+
+
+def block(token: str) -> None:
+    """Moderation takedown: a reported card stops rendering (Google Play UGC policy)."""
+    with accounts.Conn() as c:
+        _ensure_blocked(c)
+        c.run("INSERT INTO blocked_cards (token_hash, created) VALUES (?, ?) ON CONFLICT (token_hash) DO NOTHING",
+              (_tok_hash(token), time.time()))
+
+
+def is_blocked(token: str) -> bool:
+    with accounts.Conn() as c:
+        _ensure_blocked(c)
+        return bool(c.run("SELECT token_hash FROM blocked_cards WHERE token_hash=?", (_tok_hash(token),)))
 
 
 def verdict(score: float) -> str:
@@ -186,4 +215,4 @@ def page(p: dict, token: str, base: str) -> str:
 img{{max-width:100%;width:900px;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5)}}
 a.b{{display:inline-block;margin:22px 0;padding:14px 26px;background:linear-gradient(135deg,#3b66e0,#2c52c4);color:#fff;border-radius:12px;text-decoration:none;font-weight:700}}</style></head>
 <body><h1 style="font-size:22px">{title}</h1><img src="{img}" alt="Mock interview score card: {p['s']:.1f} out of 5"><br>
-<a class="b" href="{base}/">Try your own free mock interview</a><p style="color:#9fb0e6">MockRep - AI interview coach for India and US candidates &middot; <a href="/privacy" style="color:#9fb0e6">Privacy Policy</a></p></body></html>"""
+<a class="b" href="{base}/">Try your own free mock interview</a><p style="color:#9fb0e6">MockRep - AI interview coach for India and US candidates &middot; <a href="/privacy" style="color:#9fb0e6">Privacy Policy</a> &middot; <a href="/terms" style="color:#9fb0e6">Terms</a> &middot; <a href="#" id="cardReport" data-token="{e(token)}" style="color:#9fb0e6">Report this card</a><span id="cardReported" style="display:none">Reported - thank you.</span></p><script src="/static/card.js" defer></script></body></html>"""

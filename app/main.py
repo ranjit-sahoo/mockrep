@@ -616,7 +616,7 @@ def make_card(sid: str, body: CardIn, request: Request):
 @app.get("/c/{token}.png", dependencies=LIMITED)
 def card_png(token: str):
     p = card.verify(token)
-    if not p:
+    if not p or card.is_blocked(token):
         raise HTTPException(404, "Card not found.")
     return Response(card.render_png(p), media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
@@ -624,9 +624,23 @@ def card_png(token: str):
 @app.get("/c/{token}", dependencies=LIMITED)
 def card_page(token: str, request: Request):
     p = card.verify(token)
-    if not p:
+    if not p or card.is_blocked(token):
         raise HTTPException(404, "Card not found.")
     return HTMLResponse(card.page(p, token, _base(request)), headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/api/admin/block-card", dependencies=LIMITED)
+async def admin_block_card(request: Request):
+    """Moderation takedown for reported share cards. Enabled only when ADMIN_TOKEN is set on the server."""
+    tok = os.environ.get("ADMIN_TOKEN", "")
+    if not tok or not hmac.compare_digest(tok, request.headers.get("x-admin-token", "")):
+        raise HTTPException(404, "Not found.")
+    body = await request.json()
+    token = str((body or {}).get("token", ""))[:4000]
+    if not token:
+        raise HTTPException(400, "token required")
+    card.block(token)
+    return {"ok": True}
 
 
 @app.get("/api/companies")
