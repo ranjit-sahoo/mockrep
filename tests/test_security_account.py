@@ -20,7 +20,7 @@ accounts.SQLITE_PATH = os.environ["INTERVIEWPILOT_DB"]
 
 def _mk(email):
     c = TestClient(app)
-    r = c.post("/api/auth/register", json={"agree": True, "email": email, "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": email, "password": "longenough1"})
     assert r.status_code == 200
     return c
 
@@ -106,7 +106,7 @@ def test_email_verification_flow():
     mailer.send = lambda to, subject, text: sent.append((to, text))
     try:
         c = TestClient(app)
-        r = c.post("/api/auth/register", json={"agree": True, "email": "verify@example.com", "password": "longenough1"})
+        r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": "verify@example.com", "password": "longenough1"})
         assert r.status_code == 200
         assert len(sent) == 1 and sent[0][0] == "verify@example.com"
         code = sent[0][1].split("code is: ")[1][:6]

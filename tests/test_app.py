@@ -122,7 +122,7 @@ def test_recruiter_screening_ranks():
     body = {"role": "QA", "jd": JD, "candidates": [{"name": "A", "resume": RESUME}, {"name": "B", "resume": RESUME + " more text here"}, {"name": "C", "resume": "tiny"}]}
     assert c.post("/api/recruiter/screen", json=body).status_code == 403  # guests and candidates cannot use recruiter tools
     rc = TestClient(app)
-    assert rc.post("/api/auth/register", json={"agree": True, "email": "rec1@example.com", "password": "longpassword1", "agree": True, "role": "recruiter"}).status_code == 200
+    assert rc.post("/api/auth/register", json={"agree": True, "age18": True, "email": "rec1@example.com", "password": "longpassword1", "agree": True, "role": "recruiter"}).status_code == 200
     d = rc.post("/api/recruiter/screen", json=body).json()
     assert d["total"] == 2 and len(d["ranked"]) == 2
     assert d["ranked"][0]["score"] >= d["ranked"][1]["score"]
@@ -496,8 +496,8 @@ def test_bad_host_header_falls_back():
 def test_idor_history_and_unhandled_error():
     a = TestClient(app)
     b = TestClient(app)
-    a.post("/api/auth/register", json={"agree": True, "email": "ida@example.com", "password": "password123"})
-    rb = b.post("/api/auth/register", json={"agree": True, "email": "idb@example.com", "password": "password123"}); assert rb.status_code == 200, rb.text
+    a.post("/api/auth/register", json={"agree": True, "age18": True, "email": "ida@example.com", "password": "password123"})
+    rb = b.post("/api/auth/register", json={"agree": True, "age18": True, "email": "idb@example.com", "password": "password123"}); assert rb.status_code == 200, rb.text
     iid = a.post("/api/history", json={"kind": "star", "title": "t", "data": {"x": 1}}).json()["id"]
     assert a.get(f"/api/history/{iid}").status_code == 200
     assert b.get(f"/api/history/{iid}").status_code == 404
@@ -611,7 +611,7 @@ def test_progress_recorded_for_logged_in_only():
 
     u = TestClient(app)
     assert u.get("/api/progress").status_code == 401
-    assert u.post("/api/auth/register", json={"agree": True, "email": "prog@example.com", "password": "longenough1"}).status_code == 200
+    assert u.post("/api/auth/register", json={"agree": True, "age18": True, "email": "prog@example.com", "password": "longenough1"}).status_code == 200
     sid = u.post("/api/session", json={"resume": RESUME, "role": "QA Engineer", "country": "US", "followups": False}).json()["session_id"]
     u.post(f"/api/session/{sid}/answer", json={"answer": "I built a Selenium suite."})
     assert u.get(f"/api/session/{sid}/report").status_code == 200
@@ -719,7 +719,7 @@ def test_speaking_progress_roundtrip_and_delete():
     from fastapi.testclient import TestClient
 
     u = TestClient(app)
-    assert u.post("/api/auth/register", json={"agree": True, "email": "spk@example.com", "password": "longenough1"}).status_code == 200
+    assert u.post("/api/auth/register", json={"agree": True, "age18": True, "email": "spk@example.com", "password": "longenough1"}).status_code == 200
     assert u.post("/api/progress/speaking", json={"wpm": 132, "fillers": 4, "words": 90}).json() == {"ok": True}
     assert u.post("/api/progress/speaking", json={"wpm": None, "fillers": 0, "words": 5}).json() == {"ok": True}
     sp = u.get("/api/progress").json()["speaking"]
@@ -795,10 +795,10 @@ def test_resume_questions_llm_failure_is_safe_error(monkeypatch):
 
 
 def test_register_rejects_html_in_email():
-    r = c.post("/api/auth/register", json={"agree": True, "email": "<script>alert(1)</script>@x.com", "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": "<script>alert(1)</script>@x.com", "password": "longenough1"})
     assert r.status_code == 400
-    r = c.post("/api/auth/register", json={"agree": True, "email": 'a"b@c.com', "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": 'a"b@c.com', "password": "longenough1"})
     assert r.status_code == 400
-    r = c.post("/api/auth/register", json={"agree": True, "email": "normal.user+tag@example-mail.com", "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": "normal.user+tag@example-mail.com", "password": "longenough1"})
     assert r.status_code == 200
     c.delete("/api/auth/account")  # cleanup, keep production DB clean

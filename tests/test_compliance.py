@@ -32,7 +32,7 @@ def _uid():
 
 
 def test_delete_account_wipes_waitlist_company_requests_and_recovery():
-    r = c.post("/api/auth/register", json={"email": EMAIL, "password": PW, "agree": True})
+    r = c.post("/api/auth/register", json={"email": EMAIL, "password": PW, "agree": True, "age18": True})
     assert r.status_code == 200, r.text
     uid = _uid()
     # join waitlist, file a company request, create a recovery code

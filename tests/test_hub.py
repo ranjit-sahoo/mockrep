@@ -20,7 +20,7 @@ def client():
 
 
 def reg(c, email, role, invite=""):
-    r = c.post("/api/auth/register", json={"email": email, "password": "longpassword1", "agree": True, "role": role, "invite": invite})
+    r = c.post("/api/auth/register", json={"email": email, "password": "longpassword1", "agree": True, "age18": True, "role": role, "invite": invite})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -40,7 +40,7 @@ def test_roles_are_separate():
     assert r.status_code == 401
     r = client().post("/api/auth/login", json={"email": "c1@example.com", "password": "longpassword1", "role": "candidate"})
     assert r.status_code == 200
-    assert client().post("/api/auth/register", json={"email": "c2@example.com", "password": "longpassword1", "agree": True, "role": "candidate", "invite": "R123"}).status_code == 400
+    assert client().post("/api/auth/register", json={"email": "c2@example.com", "password": "longpassword1", "agree": True, "age18": True, "role": "candidate", "invite": "R123"}).status_code == 400
 
 
 def test_parse_rank_duplicates():

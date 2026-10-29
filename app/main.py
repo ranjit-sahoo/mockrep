@@ -670,6 +670,7 @@ class AuthIn(BaseModel):
     email: str = Field(max_length=320)
     password: str = Field(max_length=200)
     agree: bool | None = None
+    age18: bool | None = None  # age gate: must confirm 18+ at sign-up
     website: str | None = Field(None, max_length=200)  # honeypot: real users never fill this
     role: str | None = Field(None, max_length=20)  # candidate or recruiter, chosen at sign-up and checked at login
     invite: str | None = Field(None, max_length=40)  # recruiter company invite code (optional)
@@ -689,6 +690,8 @@ def auth_register(body: AuthIn, request: Request):
         raise HTTPException(429, "Too many sign-ups from this network today. Please try again later.")
     if body.agree is not True:
         raise HTTPException(400, "Please agree to the Terms and Privacy Policy to create an account.")
+    if body.age18 is not True:
+        raise HTTPException(400, "MockRep is for users aged 18 and above. If you are under 18, a parent or guardian must create and supervise the account; please ask us first.")
     try:
         user, token = accounts.register(body.email, body.password, body.role or "candidate", body.invite or "")
     except ValueError as e:

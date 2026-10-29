@@ -6,7 +6,7 @@ from app.main import app
 from app import accounts,db,spend
 
 def reg(role='candidate'):
- c=TestClient(app);r=c.post('/api/auth/register',json={'email':secrets.token_hex(6)+'@example.invalid','password':'QA-password-123','agree':True,'role':role});assert r.status_code==200;return c
+ c=TestClient(app);r=c.post('/api/auth/register',json={'email':secrets.token_hex(6)+'@example.invalid','password':'QA-password-123','agree':True,'age18':True,'role':role});assert r.status_code==200;return c
 
 def test_phone_is_not_resume_authority_and_completion_gate():
  r=reg('recruiter');cid=r.post('/api/hub/campaigns',json={'name':'QA','modules':['voice','quiz'],'n_questions':3}).json()['id']
@@ -25,8 +25,8 @@ def test_expired_session_not_readable():
 def test_affirmative_consent_and_origin_required():
  c=TestClient(app);p={'email':secrets.token_hex(6)+'@example.invalid','password':'QA-password-123'}
  assert c.post('/api/auth/register',json=p).status_code==400
- assert c.post('/api/auth/register',json={**p,'agree':True},headers={'Origin':'https://evil.invalid'}).status_code==403
- assert c.post('/api/auth/register',json={**p,'agree':True}).status_code==200
+ assert c.post('/api/auth/register',json={**p,'agree':True,'age18':True},headers={'Origin':'https://evil.invalid'}).status_code==403
+ assert c.post('/api/auth/register',json={**p,'agree':True,'age18':True}).status_code==200
  assert c.post('/api/history',json={'kind':'star','data':{}},headers={'Origin':'https://evil.invalid'}).status_code==403
 
 def test_spend_store_failure_stops_calls(monkeypatch):

@@ -84,6 +84,8 @@ def test_signup_consent_flag():
     r = c.post("/api/auth/register", json={"email": "noagree@example.com", "password": "longenough1", "agree": False})
     assert r.status_code == 400
     r = c.post("/api/auth/register", json={"email": "agree@example.com", "password": "longenough1", "agree": True})
+    assert r.status_code == 400 and "18" in r.json()["detail"]  # age gate missing
+    r = c.post("/api/auth/register", json={"email": "agree@example.com", "password": "longenough1", "agree": True, "age18": True})
     assert r.status_code == 200
 
 

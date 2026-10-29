@@ -128,13 +128,34 @@ def _scrypt(pw: str, salt: bytes, n: int, p: int) -> bytes:
         return hashlib.scrypt(pw.encode(), salt=salt, n=n, r=8, p=p, dklen=32, maxmem=96 * 1024 * 1024)
 
 
+# Argon2id is the primary password hash (OWASP first choice). Legacy scrypt2
+# hashes still verify and are transparently upgraded to Argon2id on next login
+# via needs_rehash in the login flow.
+try:
+    from argon2 import PasswordHasher as _PH
+    from argon2.exceptions import VerificationError as _ArgonErr
+    _argon = _PH(time_cost=3, memory_cost=64 * 1024, parallelism=2)
+except ImportError:  # pragma: no cover - requirements always include argon2-cffi
+    _argon = None
+    _ArgonErr = Exception
+
+
 def hash_password(pw: str) -> str:
+    if _argon is not None:
+        return _argon.hash(pw)
     salt = secrets.token_bytes(16)
     return f"scrypt2${2**15}${3}${salt.hex()}${_scrypt(pw, salt, 2**15, 3).hex()}"
 
 
 def verify_password(pw: str, stored: str) -> bool:
     try:
+        if stored.startswith("$argon2"):
+            if _argon is None:
+                return False
+            try:
+                return _argon.verify(stored, pw)
+            except _ArgonErr:
+                return False
         parts = stored.split("$")
         if parts[0] == "scrypt2":
             _, n, p, salt, h = parts
@@ -148,7 +169,7 @@ def verify_password(pw: str, stored: str) -> bool:
 
 
 def needs_rehash(stored: str) -> bool:
-    return not stored.startswith("scrypt2$")
+    return not stored.startswith("$argon2")
 
 
 _DUMMY = hash_password("not-a-real-password")  # equalizes timing for unknown emails

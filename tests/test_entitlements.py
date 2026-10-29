@@ -21,7 +21,7 @@ accounts.SQLITE_PATH = os.environ["INTERVIEWPILOT_DB"]
 
 
 def _user(c, email):
-    r = c.post("/api/auth/register", json={"agree": True, "email": email, "password": "longenough1"})
+    r = c.post("/api/auth/register", json={"agree": True, "age18": True, "email": email, "password": "longenough1"})
     assert r.status_code == 200
     with accounts.Conn() as conn:
         return conn.run("SELECT id FROM users WHERE email=?", (email.lower(),))[0]["id"]

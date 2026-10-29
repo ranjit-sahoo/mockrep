@@ -251,10 +251,11 @@ function acRole(){const r=document.querySelector('input[name=acRole]:checked');r
 async function authGo(path,agree){$('acErr').textContent='';
   if(!EMAIL_RE.test($('acEmail').value.trim())){$('acErr').textContent='Please enter a valid email address.';return}
   if(path.endsWith('register')&&$('acPw').value.length<8){$('acErr').textContent='Password must be at least 8 characters.';return}
-  try{await post(path,agree?{email:$('acEmail').value.trim(),password:$('acPw').value,agree:true,website:$('acHp').value,role:acRole(),invite:acRole()==='recruiter'?$('acInv').value.trim():''}:{email:$('acEmail').value,password:$('acPw').value,role:acRole()});$('acPw').value='';await refreshMe()}catch(e){$('acErr').textContent=e.message}}
+  try{await post(path,agree?{email:$('acEmail').value.trim(),password:$('acPw').value,agree:true,age18:true,website:$('acHp').value,role:acRole(),invite:acRole()==='recruiter'?$('acInv').value.trim():''}:{email:$('acEmail').value,password:$('acPw').value,role:acRole()});$('acPw').value='';await refreshMe()}catch(e){$('acErr').textContent=e.message}}
 $('acLogin').onclick=()=>busy($('acLogin'),'...',()=>authGo('/api/auth/login'));
+$('acAge').addEventListener('change',()=>{document.cookie=$('acAge').checked&&$('acAgree').checked?'mr_gconsent=1; Path=/; Max-Age=600; SameSite=None; Secure':'mr_gconsent=0; Path=/; Max-Age=0; SameSite=None; Secure'});
 $('acAgree').addEventListener('change',()=>{document.cookie=$('acAgree').checked?'mr_gconsent=1; Path=/; Max-Age=600; SameSite=None; Secure':'mr_gconsent=0; Path=/; Max-Age=0; SameSite=None; Secure'});
-$('acReg').onclick=()=>{if(!$('acAgree').checked){$('acErr').textContent='Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.';$('acAgree').focus();return}busy($('acReg'),'...',()=>authGo('/api/auth/register',true))};
+$('acReg').onclick=()=>{if(!$('acAge').checked){$('acErr').textContent='MockRep is for users aged 18 and above. Please tick the age box to continue.';$('acAge').focus();return}if(!$('acAgree').checked){$('acErr').textContent='Please tick the box to agree to the Terms of Use and Privacy Policy before creating an account.';$('acAgree').focus();return}busy($('acReg'),'...',()=>authGo('/api/auth/register',true))};
 ['acEmail','acPw'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('acLogin').click()}}));
 // Google sign-in: rendered only when the server has an OAuth client id configured.
 (async()=>{try{const cfg=await api('/api/auth/google-config');if(!cfg||!cfg.client_id)return;
@@ -686,6 +687,13 @@ const resumeIv=document.createElement('button');resumeIv.className='ghost';resum
 const version=document.createElement('p');version.className='note';version.textContent='MockRep web 1.0.4 · Online AI tools · Free plan · Android app updates install over the previous version';$('trust').append(version);
 
 const resumeNego=document.createElement('button');resumeNego.className='ghost';resumeNego.textContent='Resume last negotiation in this tab';$('btnNego').after(resumeNego);resumeNego.onclick=async()=>{try{nsid=sessionStorage.getItem('mr_negotiation');if(!nsid)throw new Error('No negotiation to resume in this tab.');const st=await api('/api/negotiation/'+encodeURIComponent(nsid)+'/state');$('chat').innerHTML='';$('negoBox').classList.remove('hide');$('negoInfo').textContent='Estimated market range: '+st.scenario.market_range+' (verify independently)';for(const t of st.transcript)bubble(t.who,t.text);$('btnSay').disabled=st.done}catch(e){$('negoErr').textContent=e.message}};
+
+// ---- on-device crash log (no network, no personal data, last 20 entries; item: free crash reporting)
+const crashLog=(m,src,l)=>{try{const k='mr_crashlog';const a=JSON.parse(localStorage.getItem(k)||'[]');a.push({t:Date.now(),m:String(m).slice(0,300),s:String(src||'').split('/').pop().slice(0,80),l:l|0});while(a.length>20)a.shift();localStorage.setItem(k,JSON.stringify(a))}catch(e){}};
+addEventListener('error',e=>crashLog(e.message,e.filename,e.lineno));
+addEventListener('unhandledrejection',e=>crashLog('unhandled: '+(e.reason&&e.reason.message||e.reason),'',0));
+const diagBtn=document.createElement('button');diagBtn.className='ghost';diagBtn.textContent='Copy diagnostics (stays on this device until you paste it)';diagBtn.onclick=async()=>{try{const d={v:'web 1.0.6',ua:navigator.userAgent,crashes:JSON.parse(localStorage.getItem('mr_crashlog')||'[]')};await navigator.clipboard.writeText(JSON.stringify(d,null,2));diagBtn.textContent='Diagnostics copied - paste it into an email to us';setTimeout(()=>diagBtn.textContent='Copy diagnostics (stays on this device until you paste it)',4000)}catch(e){diagBtn.textContent='Copy failed: '+e.message}};
+$('acct').append(diagBtn);
 
 // ---- offline indicator + install prompt
 let deferredInstall=null;

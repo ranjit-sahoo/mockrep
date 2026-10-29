@@ -53,7 +53,7 @@ def test_config_endpoint_null_when_unset(monkeypatch):
 def test_google_signin_creates_account_with_consent(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
     c = fresh()
-    r = c.post("/api/auth/google", json={"credential": "tok", "agree": True})
+    r = c.post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True})
     assert r.status_code == 200 and r.json()["user"]["email"] == "riya@gmail.com"
     assert "ip_session" in r.cookies
     assert c.get("/api/auth/me").json()["user"]["email"] == "riya@gmail.com"
@@ -67,14 +67,14 @@ def test_google_signin_new_user_needs_consent(monkeypatch):
 
 def test_google_signin_repeat_returns_same_user(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-222", email="rep@gmail.com")))
-    r1 = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True})
+    r1 = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True})
     r2 = fresh().post("/api/auth/google", json={"credential": "tok", "agree": False})  # consent not needed for existing
     assert r1.status_code == 200 and r2.status_code == 200
 
 
 def test_google_links_existing_email_account(monkeypatch):
     c = fresh()
-    c.post("/api/auth/register", json={"email": "link@gmail.com", "password": "longenough1", "agree": True})
+    c.post("/api/auth/register", json={"email": "link@gmail.com", "password": "longenough1", "agree": True, "age18": True})
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-333", email="link@gmail.com")))
     r = c.post("/api/auth/google", json={"credential": "tok", "agree": False})
     assert r.status_code == 200
@@ -85,29 +85,29 @@ def test_google_links_existing_email_account(monkeypatch):
 
 def test_google_created_account_has_no_password_login(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-444", email="nopw@gmail.com")))
-    fresh().post("/api/auth/google", json={"credential": "tok", "agree": True})
+    fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True})
     r = fresh().post("/api/auth/login", json={"email": "nopw@gmail.com", "password": "whatever123"})
     assert r.status_code == 401
 
 
 def test_invalid_token_rejected(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
-    assert fresh().post("/api/auth/google", json={"credential": "bad", "agree": True}).status_code == 401
+    assert fresh().post("/api/auth/google", json={"credential": "bad", "agree": True, "age18": True}).status_code == 401
 
 
 def test_unverified_email_rejected(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-555", email="unv@gmail.com", email_verified=False)))
-    assert fresh().post("/api/auth/google", json={"credential": "tok", "agree": True}).status_code == 401
+    assert fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True}).status_code == 401
 
 
 def test_wrong_issuer_rejected(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, iss="https://evil.example.com")))
-    assert fresh().post("/api/auth/google", json={"credential": "tok", "agree": True}).status_code == 401
+    assert fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True}).status_code == 401
 
 
 def test_disabled_when_not_configured(monkeypatch):
     monkeypatch.setattr(main, "GOOGLE_CLIENT_ID", "")
-    r = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True})
+    r = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True})
     assert r.status_code == 503
 
 
@@ -128,7 +128,7 @@ def test_delete_account_page_no_inline_script():
 def test_google_user_can_delete_account(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-666", email="gone@gmail.com")))
     c = fresh()
-    c.post("/api/auth/google", json={"credential": "tok", "agree": True})
+    c.post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True})
     assert c.get("/api/auth/me").json()["user"]["email"] == "gone@gmail.com"
     assert c.delete("/api/auth/account").status_code == 200
     assert c.get("/api/auth/me").json()["user"] is None
@@ -181,7 +181,7 @@ def test_redirect_mode_new_user_without_consent_bounces(monkeypatch):
 
 def test_redirect_mode_links_existing_account_without_consent(monkeypatch):
     c = fresh()
-    c.post("/api/auth/register", json={"email": "red3@gmail.com", "password": "longenough1", "agree": True})
+    c.post("/api/auth/register", json={"email": "red3@gmail.com", "password": "longenough1", "agree": True, "age18": True})
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-r3", email="red3@gmail.com")))
     r = c.post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "xyz"},
                cookies={"g_csrf_token": "xyz"}, headers=FORM, follow_redirects=False)
@@ -208,6 +208,6 @@ def test_redirect_form_survives_google_cross_site_headers(monkeypatch):
 
 def test_json_mode_still_origin_guarded(monkeypatch):
     monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
-    r = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True},
+    r = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True, "age18": True},
                      headers={"origin": "https://evil.example.com"})
     assert r.status_code == 403
