@@ -559,10 +559,14 @@ function chartSvg(pts){const W=600,H=260,L=36,R=14,T=14,B=34,n=pts.length,x=i=>n
     s.forEach(a=>{g+=`<circle cx="${x(a[0])}" cy="${y(a[1])}" r="4" fill="${col}"><title>${esc(k)} ${a[1]}</title></circle>`})});
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Your scores per skill over your mock interviews">${g}</svg><div class="legend">${SK.map(([,l,c])=>`<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`}
 async function progLoad(){const b=$('progBox');b.innerHTML='<p class="note">Loading...</p>';
-  try{const j=await api('/api/progress'),pts=j.points||[];
-    if(!pts.length){b.innerHTML='<p class="note">Finish a mock interview and open the session report. Your scores per skill will appear here so you can see yourself improve. Only scores are kept, never your answers.</p>';return}
-    const last=pts[pts.length-1],first=pts[0];
-    b.innerHTML=chartSvg(pts)+`<p class="note">${pts.length} session${pts.length>1?'s':''}. Latest overall score: <b>${esc(last.overall??'-')}/5</b>${pts.length>1&&first.overall!=null&&last.overall!=null?` (first: ${esc(first.overall)}/5)`:''}. Only your scores are stored, never your answers or resume.</p>`}
+  try{const j=await api('/api/progress'),pts=j.points||[],sp=j.speaking||[];let h='';
+    if(!pts.length)h+='<p class="note">Finish a mock interview and open the session report. Your scores per skill will appear here so you can see yourself improve. Only scores are kept, never your answers.</p>';
+    else{const last=pts[pts.length-1],first=pts[0];
+      h+=chartSvg(pts)+`<p class="note">${pts.length} session${pts.length>1?'s':''}. Latest overall score: <b>${esc(last.overall??'-')}/5</b>${pts.length>1&&first.overall!=null&&last.overall!=null?` (first: ${esc(first.overall)}/5)`:''}. Only your scores are stored, never your answers or resume.</p>`}
+    if(sp.length){const lab=sp.map(p=>fmt(p.created));
+      h+='<h3>Speaking pace in practice sessions</h3><div class="pace">'+barChart(sp.map(p=>p.wpm),lab,{label:'Words per minute per practice session',min:180,band:[120,160]})+'</div>';
+      h+='<h3>Filler words in practice sessions</h3><div class="fillg">'+barChart(sp.map(p=>p.fillers),lab,{label:'Filler words per practice session',min:3})+'</div><p class="note">Fewer is better. 2 or fewer is good. Pace is measured only when you speak for at least 5 seconds.</p>'}
+    b.innerHTML=h}
   catch(e){b.innerHTML=`<div class="err">${esc(e.message)}</div>`}}
 
 // ---- PDF (browser print dialog: choose "Save as PDF")

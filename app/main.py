@@ -789,9 +789,21 @@ def auth_delete(request: Request, u=Depends(need_user)):
     return resp
 
 
+class SpeakingIn(BaseModel):
+    wpm: int | None = Field(default=None, ge=0, le=400)
+    fillers: int = Field(ge=0, le=1000)
+    words: int = Field(ge=1, le=20000)
+
+
 @app.get("/api/progress", dependencies=LIMITED)
 def progress(u=Depends(need_user)):
-    return {"points": accounts.list_progress(u["id"])}
+    return {"points": accounts.list_progress(u["id"]), "speaking": accounts.list_speaking(u["id"])}
+
+
+@app.post("/api/progress/speaking", dependencies=LIMITED)
+def progress_speaking(body: SpeakingIn, u=Depends(need_user)):
+    accounts.record_speaking(u["id"], body.wpm, body.fillers, body.words)
+    return {"ok": True}
 
 
 REPORT_KINDS = {

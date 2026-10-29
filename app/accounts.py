@@ -94,6 +94,8 @@ def _schema():
         "CREATE INDEX IF NOT EXISTS history_user ON history (user_id, created)",
         "CREATE TABLE IF NOT EXISTS progress (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created " + _REAL + " NOT NULL, role TEXT NOT NULL, overall " + _REAL + ", scores TEXT NOT NULL)",
         "CREATE INDEX IF NOT EXISTS progress_user ON progress (user_id, created)",
+        "CREATE TABLE IF NOT EXISTS progress_speaking (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created " + _REAL + " NOT NULL, wpm INTEGER, fillers INTEGER NOT NULL, words INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS progress_speaking_user ON progress_speaking (user_id, created)",
         "CREATE TABLE IF NOT EXISTS waitlist (email TEXT PRIMARY KEY, created " + _REAL + " NOT NULL, source TEXT NOT NULL)",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "role TEXT NOT NULL DEFAULT 'candidate'",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "plan TEXT NOT NULL DEFAULT 'free'",
@@ -297,6 +299,7 @@ def delete_account(user_id: str):
             c.run("DELETE FROM orgs WHERE id=?", (org,))
         c.run("DELETE FROM history WHERE user_id=?", (user_id,))
         c.run("DELETE FROM progress WHERE user_id=?", (user_id,))
+        c.run("DELETE FROM progress_speaking WHERE user_id=?", (user_id,))
         c.run("DELETE FROM auth_sessions WHERE user_id=?", (user_id,))
         c.run("DELETE FROM users WHERE id=?", (user_id,))
 
@@ -361,6 +364,30 @@ def list_progress(user_id: str) -> list[dict]:
     with Conn() as c:
         rows = c.run("SELECT created, role, overall, scores FROM progress WHERE user_id=? ORDER BY created ASC LIMIT ?", (user_id, MAX_HISTORY_PER_USER))
     return [{"created": r["created"], "role": r["role"], "overall": r["overall"], "scores": json.loads(r["scores"])} for r in rows]
+
+
+def record_speaking(user_id: str, wpm, fillers: int, words: int) -> None:
+    """Practice-session speaking metrics for the logged-in user. Numbers only,
+    never the spoken text, matching the progress-table privacy stance."""
+    try:
+        wpm = int(wpm) if wpm is not None else None
+        fillers, words = int(fillers), int(words)
+    except (TypeError, ValueError):
+        return
+    if words < 1 or fillers < 0 or (wpm is not None and not 0 <= wpm <= 400):
+        return
+    with Conn() as c:
+        c.run("INSERT INTO progress_speaking (id, user_id, created, wpm, fillers, words) VALUES (?, ?, ?, ?, ?, ?)",
+              (uuid.uuid4().hex, user_id, time.time(), wpm, fillers, words))
+        extra = c.run("SELECT id FROM progress_speaking WHERE user_id=? ORDER BY created DESC", (user_id,))[MAX_HISTORY_PER_USER:]
+        for r in extra:
+            c.run("DELETE FROM progress_speaking WHERE id=?", (r["id"],))
+
+
+def list_speaking(user_id: str) -> list[dict]:
+    with Conn() as c:
+        rows = c.run("SELECT created, wpm, fillers, words FROM progress_speaking WHERE user_id=? ORDER BY created ASC LIMIT ?", (user_id, MAX_HISTORY_PER_USER))
+    return [{"created": r["created"], "wpm": r["wpm"], "fillers": r["fillers"], "words": r["words"]} for r in rows]
 
 
 # ---------- waitlist ----------

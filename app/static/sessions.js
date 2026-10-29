@@ -75,6 +75,18 @@ function start(r){S.list=order(filtered(r));S.i=0;S.st={};if(!S.list.length)retu
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition,TTS=window.speechSynthesis;
 let rec=null;
 function stopMic(){if(rec){try{rec.stop()}catch(e){}rec=null}}
+const SPK_FILLERS=['um','uh','erm','you know','i mean','basically','actually','like','sort of','kind of','so yeah','right'];
+function spkAnalyze(text,ms){const words=(text.toLowerCase().match(/[a-z']+/g))||[];const n=words.length;
+  if(!n)return null;const joined=' '+words.join(' ')+' ';const found={};
+  SPK_FILLERS.forEach(f=>{let k;if(f.indexOf(' ')>-1){k=(joined.split(' '+f+' ').length-1)}else k=words.filter(w=>w===f).length;if(k)found[f]=k});
+  const ft=Object.values(found).reduce((a,b)=>a+b,0);
+  const wpm=(ms>=5000&&n>=8)?Math.round(n/(ms/60000)):null;
+  return {wc:n,ft,fillers:found,wpm}}
+function spkTip(m){if(!m)return '';
+  if(!m.wpm)return 'Speak a little longer (at least 5 seconds) to get a pace score.';
+  let t=m.wpm<120?'A bit slow - aim for 120 to 160 words per minute.':(m.wpm>160?'A bit fast - slow down toward 120 to 160 words per minute.':'Good pace (120 to 160 words per minute).');
+  if(m.ft>0)t+=' Try to cut filler words like '+Object.keys(m.fillers).slice(0,3).map(f=>'"'+f+'"').join(', ')+'.';
+  return t}
 function speak(text){if(!TTS)return;TTS.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-IN';u.rate=1;TTS.speak(u)}
 function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[S.i],n=S.list.length;
   const st=S.st[q.id]||(S.st[q.id]={tried:'',shown:false,mark:null});
@@ -88,13 +100,13 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
   const tryBox=h('div',{},h('label',{for:'sessTry',class:'note'},'Try it yourself'),ta);
   const row1=h('div',{class:'row'});
   const ANDROID=/Android/i.test(navigator.userAgent||'');
-  if(SR){let base='',wantMic=false,micFinal='',micGot=false,micRetries=0,micErr='';
+  if(SR){let base='',wantMic=false,micFinal='',micGot=false,micRetries=0,micErr='',spoken='',spkT0=0;
     const paint=interim=>{ta.value=[base,micFinal,interim||''].filter(x=>x&&x.trim()).join(' ').trim();st.tried=ta.value};
     const beginRec=()=>{let rec0;
       try{rec0=new SR();rec0.lang='en-IN';rec0.continuous=!ANDROID;rec0.interimResults=true;rec0.maxAlternatives=1}catch(e){rec=null;wantMic=false;mic.textContent='Speak my answer';err.textContent='Speaking is not available in this browser. Please type your answer.';return}
       rec=rec0;micErr='';let done=0;
       rec0.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i],t=r&&r[0]&&r[0].transcript?r[0].transcript.trim():'';if(!t)continue;
-        if(r.isFinal){if(i>=done){micFinal=(micFinal?micFinal+' ':'')+t;micGot=true;done=i+1}}else interim+=' '+t}
+        if(r.isFinal){if(i>=done){micFinal=(micFinal?micFinal+' ':'')+t;spoken=(spoken?spoken+' ':'')+t;micGot=true;done=i+1}}else interim+=' '+t}
         paint(interim)};
       rec0.onerror=e=>{const c=e&&e.error;micErr=c||'error';if(c==='aborted'||c==='no-speech')return;
         err.textContent=(c==='not-allowed'||c==='service-not-allowed')?'Microphone access was blocked. Please allow the microphone for this site and try again, or type your answer.':'Speaking did not work ('+(c||'error')+'). Please type your answer.'};
@@ -106,10 +118,18 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
         setTimeout(()=>{if(wantMic&&ta.isConnected&&!rec){try{beginRec()}catch(x){wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not restart the microphone. Please type your answer.'}}},ANDROID?250:0)};
       try{rec0.start()}catch(e){if(rec===rec0)rec=null;wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not start the microphone. Please type your answer.'}};
     const mic=h('button',{type:'button',class:'alt',id:'sessMic',onclick:()=>{
-      if(rec){wantMic=false;stopMic();mic.textContent='Speak my answer';paint();return}
+      if(rec){wantMic=false;stopMic();mic.textContent='Speak my answer';paint();spkShow();return}
       if(wantMic){wantMic=false;mic.textContent='Speak my answer';paint();return}
-      err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;wantMic=true;mic.textContent='Stop';beginRec()}},'Speak my answer');row1.append(mic)}
-  const ansBox=h('div',{id:'sessAns','aria-live':'polite'});
+      err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;spoken='';spkT0=Date.now();spkBox.replaceChildren();wantMic=true;mic.textContent='Stop';beginRec()}},'Speak my answer');row1.append(mic)}
+  const spkBox=h('div',{id:'sessSpk','aria-live':'polite'});
+  const spkShow=()=>{spkBox.replaceChildren();const m=spkAnalyze(spoken,Date.now()-spkT0);if(!m)return;
+    st.speaking={wpm:m.wpm,fillers:m.ft,words:m.wc};
+    const fl=Object.entries(m.fillers).map(([k,v])=>'"'+k+'" x'+v).join(', ');
+    spkBox.append(h('div',{class:'mine'},h('b',{class:'note'},'Speaking: '),
+      (m.wpm?('Pace '+m.wpm+' words/min · '):'')+m.wc+' words · '+m.ft+' filler words'+(fl?' ('+fl+')':'')+'. ',
+      h('span',{class:'note'},spkTip(m)),
+      h('span',{class:'note',style:'display:block'},'Measured on your phone only; your words are not sent anywhere.')));
+    try{fetch('/api/progress/speaking',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({wpm:m.wpm,fillers:m.ft,words:m.wc})}).catch(()=>{})}catch(e){}};
   const reveal=h('button',{type:'button',class:'big',id:'sessShow',onclick:()=>{st.shown=true;drawAns()}},'Show model answer');
   row1.append(reveal);
   function drawAns(){ansBox.replaceChildren();if(!st.shown){reveal.classList.remove('hide');return}reveal.classList.add('hide');
@@ -127,7 +147,7 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
     h('button',{type:'button',class:'ghost',disabled:S.i?null:true,onclick:()=>{S.i--;card()}},'Previous'),
     h('button',{type:'button',class:'alt',onclick:()=>{if(S.i+1<n){S.i++;card()}else done()}},S.i+1<n?'Next question':'Finish'),
     h('button',{type:'button',class:'ghost',onclick:()=>{stopMic();if(TTS)TTS.cancel();S.list=[];picker()}},'Change job'));
-  wrap.append(head,h('div',{class:'card'},tryBox,err,row1,ansBox),nav);
+  wrap.append(head,h('div',{class:'card'},tryBox,err,row1,spkBox,ansBox),nav);
   drawAns();show(wrap);const qq=$('sessQ');if(qq&&qq.focus)qq.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'})}
 function trim(){const k=Object.keys(marks);if(k.length>400)for(const x of k.slice(0,k.length-400))delete marks[x]}
 async function flag(q,el){if(el.dataset.sent)return;el.dataset.sent='1';el.textContent='Sending...';

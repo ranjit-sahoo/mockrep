@@ -696,3 +696,32 @@ def test_pdf_upload_extracts_text():
     r = c.post("/api/extract", files={"file": ("cv.pdf", _tiny_pdf("Priya Sharma QA engineer in Pune with Selenium"), "application/pdf")})
     assert r.status_code == 200 and "Priya Sharma QA engineer in Pune" in r.json()["text"]
     assert c.post("/api/extract", files={"file": ("bad.pdf", b"%PDF-1.4 nonsense", "application/pdf")}).status_code == 400
+
+
+def test_speaking_progress_requires_login():
+    from fastapi.testclient import TestClient
+
+    u = TestClient(app)
+    assert u.post("/api/progress/speaking", json={"wpm": 130, "fillers": 2, "words": 60}).status_code == 401
+
+
+def test_speaking_progress_roundtrip_and_delete():
+    from fastapi.testclient import TestClient
+
+    u = TestClient(app)
+    assert u.post("/api/auth/register", json={"agree": True, "email": "spk@example.com", "password": "longenough1"}).status_code == 200
+    assert u.post("/api/progress/speaking", json={"wpm": 132, "fillers": 4, "words": 90}).json() == {"ok": True}
+    assert u.post("/api/progress/speaking", json={"wpm": None, "fillers": 0, "words": 5}).json() == {"ok": True}
+    sp = u.get("/api/progress").json()["speaking"]
+    assert len(sp) == 2 and sp[0]["wpm"] == 132 and sp[0]["fillers"] == 4 and sp[0]["words"] == 90 and sp[1]["wpm"] is None
+    # out-of-range values are rejected by validation
+    assert u.post("/api/progress/speaking", json={"wpm": 900, "fillers": 0, "words": 10}).status_code == 422
+    from app import accounts
+
+    with accounts.Conn() as cn:
+        uid = cn.run("SELECT id FROM users WHERE email=?", ("spk@example.com",))[0]["id"]
+        assert len(cn.run("SELECT id FROM progress_speaking WHERE user_id=?", (uid,))) == 2
+    assert u.delete("/api/auth/account").status_code == 200
+    with accounts.Conn() as cn:
+        assert cn.run("SELECT id FROM progress_speaking WHERE user_id=?", (uid,)) == []
+    assert u.get("/api/progress").status_code == 401
