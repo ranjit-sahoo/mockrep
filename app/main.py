@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import accounts, mailer
+from app import accounts, billing, mailer
 
 try:
     from google.oauth2 import id_token as _google_id_token
@@ -58,6 +58,8 @@ _user_ai_limiter = RateLimiter(limit=int(os.environ.get("AI_DAILY_PER_USER", "40
 def user_ai_gate(request: Request):
     """Per-account daily AI cap, on top of the per-IP caps. Signed-in users only; guests keep the IP caps."""
     u = current_user(request)
+    if u and entitlements.allowed(u, "no_daily_cap"):
+        return True
     if u and not _user_ai_limiter.check("u:" + u["id"]):
         raise HTTPException(429, "You have reached today's free limit for AI tools on this account. Try again tomorrow.")
     return True
@@ -827,6 +829,41 @@ def resend_verification_ep(request: Request):
         return {"ok": True, "already": True}
     _start_or_skip_verification(u["id"], u["email"])
     return {"ok": True}
+
+
+# ---------- premium billing (disabled unless BILLING_ENABLED=true) ----------
+def _billing_on():
+    if not billing.ENABLED:
+        raise HTTPException(404, "Not found.")
+
+
+@app.get("/api/billing/config")
+def billing_config():
+    """Public: tells the client whether to show the paywall. Off = no premium UI anywhere."""
+    return {"enabled": billing.ENABLED, "products": list(billing.PRODUCTS) if billing.ENABLED else []}
+
+
+@app.post("/api/billing/verify", dependencies=LIMITED)
+def billing_verify(body: dict, request: Request):
+    _billing_on()
+    u = need_user(request)
+    try:
+        rec = billing.verify_purchase(u["id"], str(body.get("product_id", ""))[:80], str(body.get("purchase_token", ""))[:500])
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception:
+        logging.getLogger("interviewpilot").exception("billing verify failed")
+        raise HTTPException(502, "Could not verify the purchase with Google Play. Try again in a minute.")
+    return {"ok": True, "entitlement": rec}
+
+
+@app.get("/api/billing/status", dependencies=LIMITED)
+def billing_status(request: Request):
+    _billing_on()
+    u = need_user(request)
+    return {"entitlement": entitlements.record_for(u)}
 
 
 class ChangePwIn(BaseModel):

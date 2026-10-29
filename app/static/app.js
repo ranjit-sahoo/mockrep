@@ -701,5 +701,13 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredIns
 window.addEventListener('appinstalled',()=>{deferredInstall=null;const b=$('installBtn');if(b)b.classList.add('hide')});
 const installBtn=$('installBtn');if(installBtn)installBtn.onclick=async()=>{if(!deferredInstall)return;deferredInstall.prompt();await deferredInstall.userChoice.catch(()=>null);deferredInstall=null;installBtn.classList.add('hide')};
 
+// ---- premium (rendered only when the server says BILLING_ENABLED=true; Digital Goods API in the Play TWA)
+(async()=>{try{const cfg=await api('/api/billing/config');if(!cfg.enabled)return;
+const card=document.createElement('div');card.className='card';card.innerHTML='<h3>MockRep Premium</h3><p class="note" id="premPrice">Loading price...</p><button id="premBuy">Subscribe</button><p class="note">Subscription via Google Play. Cancel anytime - a visible cancel link is always here: <a href="https://play.google.com/store/account/subscriptions" target="_blank" rel="noopener">Play Store subscriptions</a>. We remind you 24 hours before each renewal. Refunds follow Google Play\'s standard process.</p><div id="premMsg" role="status"></div>';$('acct').append(card);
+const dgs=await (window.getDigitalGoodsService?window.getDigitalGoodsService('https://play.google.com/billing'):Promise.reject(new Error('Premium purchases need the MockRep Android app from Google Play.')));
+const det=await dgs.getDetails(['mockrep_premium_monthly']);if(det&&det[0])$('premPrice').textContent=det[0].title+' - '+det[0].price.value+' '+det[0].price.currency+'/month';
+$('premBuy').onclick=async()=>{try{const req=new PaymentRequest([{supportedMethods:'https://play.google.com/billing',data:{sku:'mockrep_premium_monthly'}}],{total:{label:'MockRep Premium',amount:{currency:det[0].price.currency,value:String(det[0].price.value)}}});const resp=await req.show();const purchaseToken=resp.details&&resp.details.purchaseToken;await resp.complete('success');
+const j=await post('/api/billing/verify',{product_id:'mockrep_premium_monthly',purchase_token:purchaseToken});$('premMsg').textContent=j.ok?'Premium active. Thank you!':'Could not activate: contact support.';await refreshMe()}catch(e){$('premMsg').textContent=e.message}};}catch(e){/* billing off or not in the Play app - stay hidden */}})();
+
 // ---- ad container seam (inert): renders nothing while disabled; not remotely settable
 const ADS_ENABLED=false;{const ab=$('adBox');if(ab&&ADS_ENABLED===true){/* future approved ads only */}}

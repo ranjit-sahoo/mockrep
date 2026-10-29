@@ -3,7 +3,8 @@ PLANS (limits per role) and set users.plan; the checks below already run in ever
 
 PLANS = {
     "free": {"campaigns": 100, "invites_per_campaign": 200, "resumes_per_run": 100, "team_members": 10, "api": True},
-    # "pro": {...}  later: raise the numbers, nothing else needs to change.
+    # premium: unlimited candidate AI (per-user daily cap still applies) and raised recruiter numbers.
+    "premium": {"campaigns": 1000, "invites_per_campaign": 1000, "resumes_per_run": 1000, "team_members": 50, "api": True},
 }
 
 
@@ -26,6 +27,10 @@ _FEATURES = {"free": {
     "interview": True, "negotiation": True, "resume_review": True, "resume_builder": True,
     "jd_match": True, "prep": True, "star": True, "brief": True, "coding": True,
     "question_bank": True, "recruiter_screen": True, "org_hub": True,
+}, "premium": {
+    "interview": True, "negotiation": True, "resume_review": True, "resume_builder": True,
+    "jd_match": True, "prep": True, "star": True, "brief": True, "coding": True,
+    "question_bank": True, "recruiter_screen": True, "org_hub": True, "no_daily_cap": True,
 }}
 # Never gated by plan state or flags, in any state including expired/revoked:
 _ALWAYS = {"privacy", "data_export", "account_deletion", "security", "reporting"}
