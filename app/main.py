@@ -109,12 +109,19 @@ async def role_gate(request: Request, call_next):
 @app.middleware("http")
 async def request_origin_guard(request: Request, call_next):
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        origin = request.headers.get("origin")
-        allowed = {PUBLIC_BASE.rstrip("/"), str(request.base_url).rstrip("/")} | set(_origins)
-        if origin and origin.rstrip("/") not in allowed:
-            return JSONResponse({"detail": "This request must come from MockRep."}, status_code=403)
-        if request.headers.get("sec-fetch-site") == "cross-site":
-            return JSONResponse({"detail": "Cross-site changes are not allowed."}, status_code=403)
+        # GIS redirect mode posts the credential form cross-site from
+        # accounts.google.com; that request is CSRF-protected by Google's own
+        # g_csrf_token double-submit pair checked in the handler.
+        ct = request.headers.get("content-type", "")
+        gis_form = request.url.path == "/api/auth/google" and (
+            ct.startswith("application/x-www-form-urlencoded") or ct.startswith("multipart/form-data"))
+        if not gis_form:
+            origin = request.headers.get("origin")
+            allowed = {PUBLIC_BASE.rstrip("/"), str(request.base_url).rstrip("/")} | set(_origins)
+            if origin and origin.rstrip("/") not in allowed:
+                return JSONResponse({"detail": "This request must come from MockRep."}, status_code=403)
+            if request.headers.get("sec-fetch-site") == "cross-site":
+                return JSONResponse({"detail": "Cross-site changes are not allowed."}, status_code=403)
     return await call_next(request)
 
 

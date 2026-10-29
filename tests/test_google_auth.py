@@ -193,3 +193,21 @@ def test_redirect_mode_bad_token_bounces(monkeypatch):
     r = fresh().post("/api/auth/google", data={"credential": "bad", "g_csrf_token": "xyz"},
                      cookies={"g_csrf_token": "xyz"}, headers=FORM, follow_redirects=False)
     assert r.status_code == 303 and "gerr=google" in r.headers["location"]
+
+
+def test_redirect_form_survives_google_cross_site_headers(monkeypatch):
+    """Google's form_post arrives with Origin/Sec-Fetch-Site of accounts.google.com."""
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(dict(GOOD, sub="g-r9", email="red9@gmail.com")))
+    r = fresh().post("/api/auth/google", data={"credential": "tok", "g_csrf_token": "xyz"},
+                     cookies={"g_csrf_token": "xyz", "mr_gconsent": "1"},
+                     headers={"content-type": "application/x-www-form-urlencoded",
+                              "origin": "https://accounts.google.com",
+                              "sec-fetch-site": "cross-site"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/#acct"
+
+
+def test_json_mode_still_origin_guarded(monkeypatch):
+    monkeypatch.setattr(main._google_id_token, "verify_oauth2_token", fake_verify(GOOD))
+    r = fresh().post("/api/auth/google", json={"credential": "tok", "agree": True},
+                     headers={"origin": "https://evil.example.com"})
+    assert r.status_code == 403
