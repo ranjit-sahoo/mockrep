@@ -217,6 +217,15 @@ function showPrep(d,c,jdUsed,saved){
 }
 const codeHtml=c=>c.coding_questions.length?c.coding_questions.map(cCard).join('')+'<p><button class="ghost" id="prepToCode">Practice coding with AI review</button></p>':'<p class="note">Could not prepare coding questions right now. Try the Coding Practice tab.</p>';
 const wireCode=()=>{const b=$('prepToCode');if(b)b.onclick=()=>document.querySelector('[data-t=code]').click()};
+$('btnResQ').onclick=()=>busy($('btnResQ'),'Reading your resume...',async()=>{
+  $('prepErr').textContent='';
+  try{const r=resumeText();
+    if(!countryTouched&&!country)await detect();
+    const d=await post('/api/prep/resume-questions',{resume:r,country:cc()});
+    $('prepOut').innerHTML='<h3>Questions interviewers will ask from your resume</h3>'+
+      (d.note?`<p class="note">${esc(d.note)}</p>`:'')+
+      d.questions.map((q,i)=>`<div class="cand"><span class="pill">${esc(q.type)}</span><p><b>${i+1}. ${esc(q.question)}</b></p>${q.why_asked?`<p class="note">Why they ask: ${esc(q.why_asked)}</p>`:''}${q.angle?`<details><summary>How to answer</summary><p>${esc(q.angle)}</p></details>`:''}</div>`).join('');
+  }catch(e){$('prepErr').textContent=e.message}});
 $('btnPrep').onclick=()=>busy($('btnPrep'),'Building your pack (about 10 s)...',async()=>{
   $('prepErr').textContent='';$('prepOut').innerHTML='';lastPrep=null;
   try{const r=resumeText(),ro=role(),jd=$('jd').value.trim();

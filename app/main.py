@@ -20,7 +20,7 @@ except Exception:  # google-auth not installed
     _GOOGLE_AUTH_OK = False
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-from app import bank, brief, builder, card, coding, companies, icons, llm, prep, reports, services, star
+from app import bank, brief, builder, card, coding, companies, company_sets, icons, llm, prep, reports, services, star
 from app.guard import FailLimiter, RateLimiter, client_key, rate_limit
 
 app = FastAPI(title="MockRep", docs_url=None, redoc_url=None, openapi_url=None)
@@ -474,11 +474,15 @@ def question_bank(body: BankIn, request: Request):
     out = bank.curated(body.role)
     out["company"] = None
     out["profile"] = companies.find(body.company, _cc(request, body.country))
-    if body.company.strip() and (out["profile"] is None or body.ai):
-        try:
-            out["company"] = bank.company_questions(body.company, body.role, _cc(request, body.country))
-        except llm.LLMError:
-            out["company_error"] = "Company-specific questions are unavailable right now. Showing the role bank."
+    if body.company.strip():
+        if out["profile"] is None or body.ai:
+            try:
+                out["company"] = bank.company_questions(body.company, body.role, _cc(request, body.country))
+            except llm.LLMError:
+                out["company_error"] = "Company-specific questions are unavailable right now. Showing the role bank."
+        else:
+            # Known company: serve the curated set instantly, no AI call.
+            out["company"] = company_sets.for_company(out["profile"]["name"])
     return out
 
 
@@ -549,6 +553,17 @@ def prep_pack(body: StartIn, request: Request):
 def prep_coding(body: StartIn, request: Request):
     """Coding questions for technical profiles, loaded separately so the core pack shows up sooner."""
     return prep.build_coding(_need_resume(body.resume), _need_role(body.role), body.jd, _cc(request, body.country))
+
+
+class ResumeQIn(BaseModel):
+    resume: str = Field(max_length=12000)
+    country: str = "US"
+
+
+@app.post("/api/prep/resume-questions", dependencies=LIMITED)
+def prep_resume_questions(body: ResumeQIn, request: Request):
+    """Questions an interviewer would ask from the resume alone; no JD required."""
+    return _guard(prep.resume_questions, _need_resume(body.resume), _cc(request, body.country))
 
 
 class StarIn(BaseModel):
@@ -808,7 +823,7 @@ def progress_speaking(body: SpeakingIn, u=Depends(need_user)):
 
 REPORT_KINDS = {
     "prep", "resume-review", "jd-match", "star-answer", "company-brief",
-    "coding-review", "coding-hint", "negotiation", "question-bank-ai",
+    "coding-review", "coding-hint", "negotiation", "question-bank-ai", "resume-questions",
     "resume-builder", "interview-report", "interview-feedback",
     "recruiter-screening", "self-test", "practice-session", "other",
 }

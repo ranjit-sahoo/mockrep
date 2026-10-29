@@ -137,3 +137,35 @@ def build_coding(resume: str, role: str, jd: str, country: str) -> dict:
     res = {"coding_questions": _code(resume, role, jd, country)}
     _put(key, res)
     return res
+RESUME_Q_SYSTEM = """You are a senior interviewer about to interview THIS candidate, working only from their resume. {market}
+Write exactly 8 questions an interviewer would ask about THIS specific resume: their real projects, claimed skills,
+job switches, gaps, and numbers they claim. For strong claims, probe whether they really did the work.
+Mix technical and behavioral, easy to hard. Never invent employers, projects or numbers; where the candidate must
+fill real details, use a short placeholder like [X].
+Return ONLY JSON:
+{{"note": str (one line about this resume's interview readiness),
+ "questions": [{{"type": "technical|behavioral|scenario", "question": str, "why_asked": str (one short line), "angle": str (one short line on how to approach the answer)}}]}}"""
+
+
+def resume_questions(resume: str, country: str) -> dict:
+    """Questions an interviewer would ask from the candidate's resume alone (no JD needed). Cached by input hash."""
+    key = _key("resq", resume, "", "", country)
+    hit = _get(key)
+    if hit is not None:
+        return hit
+    out = llm.chat_json("resume_questions", RESUME_Q_SYSTEM.format(market=market.context(country)),
+                        f"RESUME:\n{resume[:9000]}", model=llm.FAST_MODEL)
+    qs = []
+    for q in out.get("questions", [])[:10] if isinstance(out.get("questions"), list) else []:
+        if isinstance(q, dict) and q.get("question"):
+            qs.append({
+                "type": q.get("type") if q.get("type") in ("technical", "behavioral", "scenario") else "behavioral",
+                "question": _s(q["question"], 500),
+                "why_asked": _s(q.get("why_asked"), 200),
+                "angle": _s(q.get("angle"), 300),
+            })
+    if not qs:
+        raise llm.LLMError("no questions returned")
+    res = {"note": _s(out.get("note"), 300), "questions": qs}
+    _put(key, res)
+    return res

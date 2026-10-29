@@ -336,7 +336,10 @@ def test_company_profiles():
 def test_known_company_is_instant_unless_ai_requested(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no AI call expected")))
     d = c.post("/api/bank", json={"role": "QA", "company": "Google"}).json()
-    assert d["profile"]["name"] == "Google" and d["company"] is None
+    assert d["profile"]["name"] == "Google" and d["company"]["curated"] is True
+    # a profiled company with no curated set returns no company block (UI offers AI)
+    d2 = c.post("/api/bank", json={"role": "QA", "company": "Zoho"}).json()
+    assert d2["profile"]["name"] == "Zoho" and d2["company"] is None
 
 
 def test_us_market_roles_and_matching():
@@ -725,3 +728,58 @@ def test_speaking_progress_roundtrip_and_delete():
     with accounts.Conn() as cn:
         assert cn.run("SELECT id FROM progress_speaking WHERE user_id=?", (uid,)) == []
     assert u.get("/api/progress").status_code == 401
+
+
+def test_bank_known_company_returns_curated_set_instantly(monkeypatch):
+    calls = []
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: calls.append(1) or {"questions": []})
+    d = c.post("/api/bank", json={"role": "QA Engineer", "company": "TCS"}).json()
+    assert calls == []  # curated set needs no AI call
+    assert d["profile"]["name"] == "TCS"
+    assert d["company"]["curated"] is True and d["company"]["company"] == "TCS"
+    assert len(d["company"]["questions"]) >= 6 and "not leaked" in d["company"]["note"].lower()
+    assert all(q["question"] and q["hint"] and q["type"] and q["level"] for q in d["company"]["questions"])
+
+
+def test_bank_profiled_company_without_set_keeps_ai_path():
+    d = c.post("/api/bank", json={"role": "QA Engineer", "company": "Zoho"}).json()
+    assert d["profile"]["name"] == "Zoho" and d["company"] is None
+
+
+def test_bank_all_curated_companies_resolve():
+    from app import companies, company_sets
+
+    for name in company_sets.companies_with_sets():
+        p = companies.find(name)
+        assert p and p["name"] == name, f"set for unknown company {name}"
+
+
+def test_resume_questions_endpoint(monkeypatch):
+    from app import prep
+
+    prep._cache.clear()
+    payload = {"note": "Solid resume.", "questions": [
+        {"type": "technical", "question": "Explain your Selenium framework design.", "why_asked": "Probes real depth", "angle": "Describe structure, then one hard bug"}]}
+    calls = []
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: calls.append(1) or payload)
+    d = c.post("/api/prep/resume-questions", json={"resume": RESUME, "country": "IN"}).json()
+    assert d["note"] == "Solid resume." and len(d["questions"]) == 1
+    assert d["questions"][0]["angle"].startswith("Describe")
+    c.post("/api/prep/resume-questions", json={"resume": RESUME, "country": "IN"})
+    assert len(calls) == 1  # cached by input hash
+
+
+def test_resume_questions_requires_resume():
+    r = c.post("/api/prep/resume-questions", json={"resume": "", "country": "IN"})
+    assert r.status_code == 400
+
+
+def test_resume_questions_llm_failure_is_safe_error(monkeypatch):
+    from app import prep
+
+    prep._cache.clear()
+    def boom(*a, **k):
+        raise llm.LLMError("down")
+    monkeypatch.setattr(llm, "chat_json", boom)
+    r = c.post("/api/prep/resume-questions", json={"resume": RESUME, "country": "IN"})
+    assert r.status_code == 502
