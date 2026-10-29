@@ -33,9 +33,19 @@ limiter = RateLimiter(limit=int(os.environ.get("RATE_LIMIT_PER_MIN", "60")), win
 
 
 def client_key(request: Request) -> str:
-    """Use the transport peer after the server proxy middleware, never arbitrary headers."""
-    # Uvicorn's configured proxy handling owns the transport peer. Do not
-    # accept arbitrary CDN or X-Forwarded-For fields at the application layer.
+    """Real client IP for rate limiting, safe behind Render's proxy.
+
+    Uvicorn with --forwarded-allow-ips '*' resolves request.client.host to the
+    LEFTMOST X-Forwarded-For entry, which a caller can spoof freely (verified
+    live: rotating XFF rotated the limiter bucket). Render's edge always
+    appends the true client IP as the LAST XFF entry, so trust only that one.
+    A spoofed header ("fake1, fake2") becomes "fake1, fake2, <real ip>" at the
+    edge, and the real ip is what we key on. Do not use any earlier entry."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        last = xff.rsplit(",", 1)[-1].strip()
+        if last:
+            return last
     return request.client.host if request.client else "unknown"
 
 

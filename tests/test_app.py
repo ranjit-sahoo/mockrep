@@ -454,14 +454,18 @@ def test_security_headers_and_no_docs():
 
 
 def test_spoofed_forwarded_for_not_trusted():
+    # Spoofable leftmost XFF entries are ignored; only the last entry (appended by
+    # Render's edge with the real client IP) is trusted. Leftmost-only spoof = bypass.
     from app.guard import client_key
 
     class R:
         def __init__(s, h):
             s.headers, s.client = h, None
 
-    assert client_key(R({"cf-connecting-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "unknown"
-    assert client_key(R({"x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "unknown"
+    assert client_key(R({"cf-connecting-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "10.0.0.1"
+    assert client_key(R({"x-forwarded-for": "1.1.1.1, 9.9.9.9, 2.2.2.2, 10.0.0.1"})) == "10.0.0.1"
+    assert client_key(R({"x-forwarded-for": "1.1.1.1"})) == "1.1.1.1"
+    assert client_key(R({})) == "unknown"  # no header, no peer
 
 
 def test_daily_model_budget(monkeypatch):
