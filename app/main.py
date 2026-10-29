@@ -799,7 +799,7 @@ def _start_or_skip_verification(user_id: str, email: str) -> None:
         mailer.send(email, "Your MockRep verification code",
                     f"Your MockRep verification code is: {code}\n\nIt expires in 10 minutes. If you did not create or change a MockRep account, ignore this email.")
     except Exception:
-        logging.getLogger("interviewpilot").exception("verification email failed")
+        logging.getLogger("interviewpilot").error("verification email delivery failed")
 
 
 class VerifyEmailIn(BaseModel):

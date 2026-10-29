@@ -73,7 +73,7 @@ def review_resume(resume: str, role: str, jd: str = "", country: str = "US"):
     fixes: list = []
     out = factuality.sanitize_with_source(out, resume, fixes)
     if fixes:
-        log.info("factuality scrub on resume_review: %s", fixes)
+        log.info("factuality scrub on resume_review: count=%d", len(fixes))
     return out
 
 
@@ -85,7 +85,7 @@ def match_jd(resume: str, role: str, jd: str, country: str = "US"):
         requirement_source=jd,
         requirement_keys=("missing_keywords", "gap"))
     if fixes:
-        log.info("factuality scrub on match: %s", fixes)
+        log.info("factuality scrub on match: count=%d", len(fixes))
     return out
 
 

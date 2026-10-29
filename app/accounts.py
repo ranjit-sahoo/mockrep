@@ -92,6 +92,8 @@ def _schema():
         if using_postgres() else
         "CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, data TEXT NOT NULL, created REAL NOT NULL)",
         "CREATE INDEX IF NOT EXISTS history_user ON history (user_id, created)",
+        "CREATE INDEX IF NOT EXISTS auth_sessions_user ON auth_sessions (user_id)",
+        "CREATE INDEX IF NOT EXISTS auth_sessions_expiry ON auth_sessions (expires)",
         "CREATE TABLE IF NOT EXISTS progress (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created " + _REAL + " NOT NULL, role TEXT NOT NULL, overall " + _REAL + ", scores TEXT NOT NULL)",
         "CREATE INDEX IF NOT EXISTS progress_user ON progress (user_id, created)",
         "CREATE TABLE IF NOT EXISTS progress_speaking (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, created " + _REAL + " NOT NULL, wpm INTEGER, fillers INTEGER NOT NULL, words INTEGER NOT NULL)",
@@ -102,6 +104,8 @@ def _schema():
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_id TEXT",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "org_role TEXT",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "google_sub TEXT",
+        "CREATE INDEX IF NOT EXISTS users_org ON users (org_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS users_google_sub ON users (google_sub)",
         "ALTER TABLE users ADD COLUMN " + ("IF NOT EXISTS " if using_postgres() else "") + "email_verified INTEGER NOT NULL DEFAULT 0",
         "CREATE TABLE IF NOT EXISTS email_verifications (user_id TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires " + _REAL + " NOT NULL, attempts INTEGER NOT NULL DEFAULT 0)",
         "CREATE TABLE IF NOT EXISTS orgs (id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_color TEXT NOT NULL, logo TEXT NOT NULL, api_key_hash TEXT, invite_code TEXT, viewer_code TEXT, created " + _REAL + " NOT NULL)",
@@ -411,8 +415,8 @@ def change_password(user_id: str, current_password: str, new_password: str, keep
 
 
 def change_email(user_id: str, new_email: str, password: str) -> str:
-    e = (new_email or "").strip().lower()
-    if not e or "@" not in e or len(e) > 254:
+    e = _clean_email(new_email)
+    if len(e) > 254:
         raise ValueError("Please enter a valid email address.")
     with Conn() as c:
         rows = c.run("SELECT pw_hash FROM users WHERE id=?", (user_id,))
