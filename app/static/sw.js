@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and keeps the shell available offline.
 // API calls are never cached.
-const CACHE = "mr-shell-v29";
+const CACHE = "mr-shell-v30";
 // Complete shell: every asset index.html and the manifest need. addAll below is atomic - if any
 // fetch fails, install fails, this worker never activates, and the previous worker and its cache
 // keep serving, so a half-downloaded update can never leave the app broken offline.
@@ -20,6 +20,7 @@ const SHELL = [
   "/static/icons/maskable-512.png",
   "/static/icons/apple-touch-icon.png",
   "/static/offline.html",
+  "/static/offline.js",
   "/favicon.ico",
 ];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

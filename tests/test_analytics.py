@@ -38,6 +38,11 @@ def test_pageviews_unique_and_stats_page():
     h = {"user-agent": "Mozilla/5.0 (X11) Chrome/120"}
     for _ in range(3):
         assert c.get("/", headers=h).status_code == 200
+    # HTTP requests do not collect anything in the free launch build.
+    assert analytics.summary()["totals"].get("pageview", 0) == 0
+    # Exercise the isolated counter helpers without enabling request collection.
+    for _ in range(3):
+        analytics.record("pageview", "test-address", h["user-agent"])
     assert _wait("pageview", 3)
     s = analytics.summary()
     assert s["totals"]["pageview"] == 3

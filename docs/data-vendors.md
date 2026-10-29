@@ -10,5 +10,4 @@ Minimal sharing by design; every vendor processes only what the feature needs.
 | Google Play (future, premium only) | Purchase token + subscription state | Billing, disabled by default | Google-managed |
 | SMTP relay (optional, if SMTP_HOST set) | Recipient email + 6-digit code | Email verification | Operator's choice; any free tier (e.g. Brevo) |
 
-No analytics vendor, no ads SDK, no crash-reporting vendor: analytics are first-party
-counters without IPs, crash log stays on-device until the user pastes it into an email.
+No analytics vendor, no ads SDK, no crash-reporting vendor: analytics collection is disabled, and no automatic crash details are stored.

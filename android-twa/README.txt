@@ -1,4 +1,4 @@
-MockRep Android 1.0.6 source (premium-ready: billing permission added, inert while BILLING_ENABLED off)
+MockRep Android 1.0.6 source (free launch: no billing permission or billing SDK)
 Package com.ranjitsahoo.mockrep, versionCode 7, min Android 23, target Android 36.
 Chrome Trusted Web Activity of https://mockrep.onrender.com/; launch link now /#sessions.
 Uses browser site data, voice recognition, uploads and download behavior. No bundled website or WebView.
