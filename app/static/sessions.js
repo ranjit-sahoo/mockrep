@@ -66,7 +66,25 @@ function picker(){
   wrap.append(h('div',{class:'card'},search),list,startHolder);
   const saved=lsGet(KEY_ROLE,null);if(!S.role&&saved&&roleById(saved))S.role=saved;
   draw();drawStart();show(wrap);
+  offlineBadge(wrap);weakSpot(startHolder,drawStart);
 }
+function offlineBadge(wrap){try{if(!('caches' in window))return;
+  caches.keys().then(ks=>Promise.all(ks.map(k=>caches.open(k).then(c=>c.match('/static/practice-pack.json'))))).then(ms=>{
+    if(ms.some(Boolean)){wrap.firstChild&&wrap.insertBefore(h('p',{class:'note',style:'text-align:center'},'Offline ready - these practice sessions work on this phone even without internet.'),wrap.children[1]||null)}}).catch(()=>{})}catch(e){}}
+const WEAK_SKILLS=[['star','STAR structure','behavioral'],['depth','adding real detail','behavioral'],['correctness','technical accuracy','technical'],['clarity',null,null],['fluency',null,null]];
+function weakSpot(holder,redraw){try{
+  fetch('/api/progress',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(d=>{
+    const items=d&&d.points;
+    if(!Array.isArray(items)||!items.length)return;
+    const agg={};for(const it of items.slice(-12)){const sc=(it&&it.scores)||{};for(const k in sc){const kk=String(k).toLowerCase();const v=Number(sc[k]);if(isFinite(v)){(agg[kk]=agg[kk]||[]).push(v)}}}
+    let worst=null,wa=99;for(const [key,label,typ] of WEAK_SKILLS){const a=agg[key];if(!a||!a.length||!typ)continue;const avg=a.reduce((x,y)=>x+y,0)/a.length;if(avg<wa){wa=avg;worst={label,typ}}}
+    if(!worst)return;
+    const btn=h('button',{type:'button',class:'ghost',style:'width:100%;margin-top:8px',onclick:()=>{
+      let r=S.role&&roleById(S.role);
+      if(!r||!roleQs(r).some(q=>q.t===worst.typ)){r=PACK.roles.find(x=>roleQs(x).filter(q=>q.t===worst.typ).length>=3)}
+      if(!r)return;S.role=r.id;lsSet(KEY_ROLE,r.id);S.ft=worst.typ;S.fl='all';S.shuffle=true;
+      redraw();start(r)}},'Train my weak spot: '+worst.label+' ('+wa.toFixed(1)+'/5 in your mock interviews)');
+    holder.append(h('p',{class:'note',style:'margin:10px 0 0'},'From your interview reports, your lowest area is '+worst.label+'.'),btn)}).catch(()=>{})}catch(e){}}
 function filtered(r){return roleQs(r).filter(q=>(S.fl==='all'||q.l===S.fl)&&(S.ft==='all'||q.t===S.ft))}
 function order(qs){const a=qs.slice();if(S.shuffle){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
   const about=x=>/^tell me about yourself/i.test(x.q)?0:1;return a.map((q,i)=>[q,i]).sort((x,y)=>about(x[0])-about(y[0])||LV[x[0].l]-LV[y[0].l]||x[1]-y[1]).map(x=>x[0])}
@@ -75,6 +93,17 @@ function start(r){S.list=order(filtered(r));S.i=0;S.st={};if(!S.list.length)retu
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition,TTS=window.speechSynthesis;
 let rec=null;
 function stopMic(){if(rec){try{rec.stop()}catch(e){}rec=null}}
+let mrec=null,mchunks=[],mstream=null;
+function recAudio(){if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||typeof MediaRecorder==='undefined')return;
+  stopAudio(true);
+  navigator.mediaDevices.getUserMedia({audio:true}).then(s=>{mstream=s;mchunks=[];
+    try{mrec=new MediaRecorder(s)}catch(e){mrec=null;s.getTracks().forEach(t=>t.stop());mstream=null;return}
+    mrec.ondataavailable=e=>{if(e.data&&e.data.size)mchunks.push(e.data)};try{mrec.start()}catch(e){mrec=null}}).catch(()=>{})}
+function stopAudio(discard){return new Promise(res=>{const r=mrec;mrec=null;
+  if(mstream){mstream.getTracks().forEach(t=>t.stop());mstream=null}
+  if(!r||discard){res(null);return}
+  r.onstop=()=>{try{const b=new Blob(mchunks,{type:r.mimeType||'audio/webm'});mchunks=[];res(b.size?URL.createObjectURL(b):null)}catch(e){res(null)}};
+  try{r.stop()}catch(e){res(null)}})}
 const SPK_FILLERS=['um','uh','erm','you know','i mean','basically','actually','like','sort of','kind of','so yeah','right'];
 function spkAnalyze(text,ms){const words=(text.toLowerCase().match(/[a-z']+/g))||[];const n=words.length;
   if(!n)return null;const joined=' '+words.join(' ')+' ';const found={};
@@ -117,13 +146,17 @@ function card(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),q=S.list[
         base=[base,micFinal].filter(x=>x&&x.trim()).join(' ');micFinal='';micErr='';
         setTimeout(()=>{if(wantMic&&ta.isConnected&&!rec){try{beginRec()}catch(x){wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not restart the microphone. Please type your answer.'}}},ANDROID?250:0)};
       try{rec0.start()}catch(e){if(rec===rec0)rec=null;wantMic=false;mic.textContent='Speak my answer';err.textContent='Could not start the microphone. Please type your answer.'}};
-    const mic=h('button',{type:'button',class:'alt',id:'sessMic',onclick:()=>{
-      if(rec){wantMic=false;stopMic();mic.textContent='Speak my answer';paint();spkShow();return}
-      if(wantMic){wantMic=false;mic.textContent='Speak my answer';paint();return}
-      err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;spoken='';spkT0=Date.now();spkBox.replaceChildren();wantMic=true;mic.textContent='Stop';beginRec()}},'Speak my answer');row1.append(mic)}
+    const mic=h('button',{type:'button',class:'alt',id:'sessMic',onclick:async()=>{
+      if(rec){wantMic=false;stopMic();const url=await stopAudio(false);mic.textContent='Speak my answer';paint();spkShow(url);return}
+      if(wantMic){wantMic=false;stopAudio(true);mic.textContent='Speak my answer';paint();return}
+      err.textContent='';base=ta.value.trim();micFinal='';micGot=false;micRetries=0;spoken='';spkT0=Date.now();spkBox.replaceChildren();wantMic=true;mic.textContent='Stop';recAudio();beginRec()}},'Speak my answer');row1.append(mic)}
   const ansBox=h('div',{id:'sessAns','aria-live':'polite'});
   const spkBox=h('div',{id:'sessSpk','aria-live':'polite'});
-  const spkShow=()=>{spkBox.replaceChildren();const m=spkAnalyze(spoken,Date.now()-spkT0);if(!m)return;
+  const spkShow=url=>{spkBox.replaceChildren();
+    if(url){spkBox.append(h('div',{class:'mine'},h('b',{class:'note'},'Hear yourself: '),
+      h('audio',{controls:true,src:url,style:'display:block;width:100%;margin:6px 0'}),
+      h('span',{class:'note',style:'display:block'},'Your voice stays on this phone; the recording is never uploaded. Listen for pace, filler words and a clear STAR ending.')))}
+    const m=spkAnalyze(spoken,Date.now()-spkT0);if(!m)return;
     st.speaking={wpm:m.wpm,fillers:m.ft,words:m.wc};
     const fl=Object.entries(m.fillers).map(([k,v])=>'"'+k+'" x'+v).join(', ');
     spkBox.append(h('div',{class:'mine'},h('b',{class:'note'},'Speaking: '),
@@ -154,17 +187,24 @@ function trim(){const k=Object.keys(marks);if(k.length>400)for(const x of k.slic
 async function flag(q,el){if(el.dataset.sent)return;el.dataset.sent='1';el.textContent='Sending...';
   try{const r=await fetch('/api/content-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'practice-session',reason:'Practice Sessions answer reported by user',excerpt:q.q.slice(0,300)})});
     el.textContent=r.ok?'Thank you. We will review this answer.':'Could not send. Please email us from the menu.'}catch(e){el.textContent='Could not send. Please check your internet.';delete el.dataset.sent}}
-function done(){stopMic();if(TTS)TTS.cancel();const r=roleById(S.role),n=S.list.length;
+function done(){stopMic();stopAudio(true);if(TTS)TTS.cancel();const r=roleById(S.role),n=S.list.length;
+  const streak=streakBump();
   const seen=S.list.filter(q=>S.st[q.id]&&S.st[q.id].shown).length,tried=S.list.filter(q=>S.st[q.id]&&S.st[q.id].tried.trim()).length;
   const again=S.list.filter(q=>S.st[q.id]&&S.st[q.id].mark==='again');
   const wrap=h('div',{},h('div',{class:'card'},h('h2',{},'Session complete'),h('p',{},r.name+': '+n+' questions.'),
     h('p',{},'You tried '+tried+' answers yourself and opened '+seen+' model answers.'+(again.length?' '+again.length+' marked to practise again.':'')),
     h('p',{class:'note'},'Tip: say your answers out loud. The real interview is spoken.'),
+    streak?h('p',{class:'note'},'Practice streak: '+streak+' day'+(streak===1?'':'s')+' in a row. Come back tomorrow to keep it going.'):null,
+    h('p',{},h('a',{href:'https://wa.me/?text='+encodeURIComponent('I just practised '+n+' '+r.name+' interview questions on MockRep. Free practice sessions, question bank and mock interviews: https://mockrep.onrender.com'),target:'_blank',rel:'noopener',style:'color:var(--acc2)'},'Share your practice on WhatsApp')),
     h('div',{class:'row'},again.length?h('button',{type:'button',onclick:()=>{S.list=again;S.i=0;card()}},'Practise the '+again.length+' marked'):null,
       h('button',{type:'button',class:'alt',onclick:()=>{S.list=order(filtered(r));S.i=0;S.st={};card()}},'Start again'),
       h('button',{type:'button',class:'ghost',onclick:()=>{S.list=[];picker()}},'Choose another job'),
       h('button',{type:'button',class:'ghost',onclick:()=>{if(window.__mr)window.__mr.setView('interview')}},'Try a full mock interview'))));
   show(wrap);window.scrollTo({top:0,behavior:'auto'})}
+function streakBump(){try{const t=new Date(),k=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const today=k(t),y=k(new Date(t.getTime()-864e5));const s=lsGet('mr_streak',null)||{days:0,last:''};
+  if(s.last===today)return s.days;const days=(s.last===y)?(s.days||0)+1:1;lsSet('mr_streak',{days,last:today});return days}catch(e){return 0}}
+
 // ---------- wiring
 async function render(){const r=root();if(!r)return;r.replaceChildren(h('p',{class:'note'},'Loading...'));
   try{await load();if(S.list.length&&S.role&&roleById(S.role))card();else picker()}

@@ -91,6 +91,10 @@ async function bankGo(ai){
     if(d.company_error)html+=`<p class="note">${esc(d.company_error)}</p>`;
     if(d.company)html+=`<h3>${esc(d.company.company)} style</h3><p class="note">${esc(d.company.note)}</p>`+d.company.questions.map(bankCard).join('')+`<h3>${esc(d.role)} questions</h3>`;
     $('bankCoOut').innerHTML=html;
+    const cot=$('bankCo').value.trim();
+    if(cot&&!d.company){$('bankCoOut').insertAdjacentHTML('beforeend',`<p class="note">We do not have a curated set for ${esc(cot)} yet. <button id="bankReq" class="ghost" type="button">Ask us to add ${esc(cot)}</button></p>`);
+      const br=$('bankReq');if(br)br.onclick=async()=>{br.disabled=true;br.textContent='Sending...';
+        try{await post('/api/company-request',{company:cot});br.textContent='Noted. We add the most asked-for companies first.'}catch(x){br.disabled=false;br.textContent='Could not send - '+x.message}}}
     bankAll=d.questions;bankFilter='all';
     $('bankFilter').innerHTML=['all','technical','behavioral','scenario'].map(f=>`<button data-f="${f}">${f}</button>`).join('');
     bankRender();
@@ -496,6 +500,9 @@ async function loadReport(){$('ansErr').textContent='';const ra=$('retryArea');i
       if($('cardShare'))$('cardShare').onclick=()=>navigator.share({title:'My MockRep score',text:`I scored ${c.score}/5 in an AI mock interview on MockRep.`,url:c.url}).catch(()=>{});
       $('cardCopy').onclick=async e=>{try{await navigator.clipboard.writeText(c.url);e.target.textContent='Copied'}catch(_){prompt('Copy this link',c.url)}}}
     catch(e){$('ansErr').textContent=e.message}});
+  try{const _t=new Date(),_k=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const _today=_k(_t),_y=_k(new Date(_t.getTime()-864e5));const _s=JSON.parse(localStorage.getItem('mr_streak')||'null')||{days:0,last:''};
+    if(_s.last!==_today){const _days=(_s.last===_y)?(_s.days||0)+1:1;localStorage.setItem('mr_streak',JSON.stringify({days:_days,last:_today}))}}catch(_){}
   el.scrollIntoView({behavior:'smooth'})}catch(e){$('ansErr').textContent=e.message}}
 
 // ---- STAR builder
@@ -624,6 +631,7 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
   // any code that switches a tab (e.g. the "practise this" buttons) also switches the view
   $('tabs').addEventListener('click',e=>{const t=e.target.dataset&&e.target.dataset.t;if(t&&document.body.dataset.view!==t){document.body.dataset.view=t;$('viewTitle').textContent=TITLES[t]||'';drawer.querySelectorAll('button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===t));try{history.pushState({v:t},'','#'+t)}catch(x){}}});
   addEventListener('popstate',e=>{openMenu(false);setView((e.state&&e.state.v)||(location.hash||'').slice(1)||'home',false)});
+  document.body.addEventListener('click',()=>{if(document.body.dataset.view==='home')planCard()});
   // account entry points
   $('acctOpen').onclick=()=>$('acctForm').classList.toggle('hide');
   const syncHist=()=>$('dHist').classList.toggle('hide',$('tabHist').classList.contains('hide'));
@@ -640,6 +648,18 @@ $('wlBtn').onclick=()=>busy($('wlBtn'),'Joining...',async()=>{$('wlMsg').textCon
   const scb=$('stickyCtaBtn');if(scb)scb.onclick=()=>$('heroCta').click();
   $('mVoice').addEventListener('click',()=>{if(!prefs.accent){const c=document.querySelector('#countries .on');if(c&&c.dataset.c==='India')prefs.accent='en-IN'}},true);
   window.__startHash=(location.hash||'').slice(1);
+  function planCard(){let c=$('mrPlan');if(!c){c=document.createElement('section');c.className='card';c.id='mrPlan';const g=$('homeGrid');if(!g)return;g.parentNode.insertBefore(c,g)}
+    let st={days:0};try{st=JSON.parse(localStorage.getItem('mr_streak')||'{}')||{}}catch(e){}
+    const days=+st.days||0;
+    c.innerHTML=`<h2 style="margin:0 0 4px">Today's 10-minute plan</h2>
+    ${days?`<p class="note">Practice streak: <b>${days} day${days===1?'':'s'}</b> in a row. Keep it going.</p>`:'<p class="note">Finish this plan today to start a practice streak.</p>'}
+    <ol style="margin:8px 0 0;padding-left:22px;line-height:1.8">
+    <li>Warm up: answer <b>3 practice questions</b> out loud for your job.</li>
+    <li>Do <b>1 mock interview question</b> by speaking and read the feedback.</li>
+    <li>Re-do <b>1 question you marked "practise again"</b>.</li></ol>
+    <div class="row" style="margin-top:10px"><button id="mrPlanStart" class="alt">Start the 10 minutes</button><button id="mrPlanMock" class="ghost">Go to mock interview</button></div>`;
+    $('mrPlanStart').onclick=()=>setView('sessions');$('mrPlanMock').onclick=()=>setView('interview')}
+  planCard();
   const start=(location.hash||'').slice(1);setView(TITLES[start]?start:'home',false);try{history.replaceState({v:document.body.dataset.view},'','#'+document.body.dataset.view)}catch(e){}
 })();
 

@@ -401,6 +401,17 @@ def join_waitlist(email: str, source: str = "site") -> bool:
     return not had
 
 
+def add_company_request(company: str, email: str = "") -> None:
+    name = " ".join((company or "").split())[:80]
+    if len(name) < 2:
+        raise ValueError("Please tell us which company you want.")
+    with Conn() as c:
+        c.run("CREATE TABLE IF NOT EXISTS company_requests (id INTEGER PRIMARY KEY "
+              + ("GENERATED ALWAYS AS IDENTITY" if using_postgres() else "AUTOINCREMENT")
+              + ", created DOUBLE PRECISION NOT NULL, company TEXT NOT NULL, email TEXT NOT NULL DEFAULT '')")
+        c.run("INSERT INTO company_requests(created,company,email) VALUES(?,?,?)", (time.time(), name, (email or "")[:254]))
+
+
 def recovery_create(user_id: str) -> str:
     code = secrets.token_urlsafe(32)
     with Conn() as c:

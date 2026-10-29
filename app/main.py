@@ -51,6 +51,7 @@ _signup_limiter = RateLimiter(limit=int(os.environ.get("SIGNUPS_PER_DAY", "10"))
 _fail_limiter = FailLimiter(limit=5, window=1800.0)
 _waitlist_limiter = RateLimiter(limit=int(os.environ.get("WAITLIST_PER_DAY", "10")), window=86400.0)
 _report_limiter = RateLimiter(limit=int(os.environ.get("REPORTS_PER_DAY", "10")), window=86400.0)
+_company_req_limiter = RateLimiter(limit=int(os.environ.get("COMPANY_REQUESTS_PER_DAY", "10")), window=86400.0)
 _auth_limiter = RateLimiter(limit=int(os.environ.get("AUTH_RATE_PER_MIN", "10")), window=60.0)
 COOKIE = "ip_session"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE_URL", "https://mockrep.onrender.com")
@@ -849,6 +850,26 @@ def content_report(body: ReportIn, request: Request):
         kind = "other"
     rid = reports.add(kind, body.reason.strip(), body.excerpt.strip(), (u or {}).get("email", ""))
     return {"ok": True, "id": rid}
+
+
+class CompanyRequestIn(BaseModel):
+    company: str = Field(max_length=80)
+    website: str | None = Field(None, max_length=200)  # honeypot
+
+
+@app.post("/api/company-request", dependencies=LIMITED)
+def company_request(body: CompanyRequestIn, request: Request):
+    """Users ask for the next curated company set; no email, no AI call."""
+    if body.website:
+        return {"ok": True}  # bot filled the hidden field: pretend success, store nothing
+    if not _company_req_limiter.check(client_key(request)):
+        raise HTTPException(429, "Too many requests from this network today. Please try again later.")
+    u = current_user(request)
+    try:
+        accounts.add_company_request(body.company, (u or {}).get("email", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
 
 
 class WaitIn(BaseModel):

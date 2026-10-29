@@ -337,7 +337,10 @@ def test_known_company_is_instant_unless_ai_requested(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no AI call expected")))
     d = c.post("/api/bank", json={"role": "QA", "company": "Google"}).json()
     assert d["profile"]["name"] == "Google" and d["company"]["curated"] is True
-    # a profiled company with no curated set returns no company block (UI offers AI)
+    # every profiled company now has a curated set; if one were ever missing, the
+    # profile is returned without a company block so the UI offers AI generation
+    from app import company_sets as _cs
+    monkeypatch.setattr(_cs, "for_company", lambda name: None)
     d2 = c.post("/api/bank", json={"role": "QA", "company": "Zoho"}).json()
     assert d2["profile"]["name"] == "Zoho" and d2["company"] is None
 
@@ -741,7 +744,9 @@ def test_bank_known_company_returns_curated_set_instantly(monkeypatch):
     assert all(q["question"] and q["hint"] and q["type"] and q["level"] for q in d["company"]["questions"])
 
 
-def test_bank_profiled_company_without_set_keeps_ai_path():
+def test_bank_profiled_company_without_set_keeps_ai_path(monkeypatch):
+    from app import company_sets as _cs
+    monkeypatch.setattr(_cs, "for_company", lambda name: None)
     d = c.post("/api/bank", json={"role": "QA Engineer", "company": "Zoho"}).json()
     assert d["profile"]["name"] == "Zoho" and d["company"] is None
 
