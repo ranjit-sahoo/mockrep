@@ -21,7 +21,7 @@ SESSION_DAYS = 30
 MAX_HISTORY_PER_USER = 200
 MAX_ITEM_BYTES = 120_000
 KINDS = {"star", "brief", "prep", "code_review", "resume", "interview", "negotiation", "match", "review"}
-EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,}$")
+EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 
 _pool = None
 _pool_lock = threading.Lock()

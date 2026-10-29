@@ -783,3 +783,13 @@ def test_resume_questions_llm_failure_is_safe_error(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", boom)
     r = c.post("/api/prep/resume-questions", json={"resume": RESUME, "country": "IN"})
     assert r.status_code == 502
+
+
+def test_register_rejects_html_in_email():
+    r = c.post("/api/auth/register", json={"agree": True, "email": "<script>alert(1)</script>@x.com", "password": "longenough1"})
+    assert r.status_code == 400
+    r = c.post("/api/auth/register", json={"agree": True, "email": 'a"b@c.com', "password": "longenough1"})
+    assert r.status_code == 400
+    r = c.post("/api/auth/register", json={"agree": True, "email": "normal.user+tag@example-mail.com", "password": "longenough1"})
+    assert r.status_code == 200
+    c.delete("/api/auth/account")  # cleanup, keep production DB clean
