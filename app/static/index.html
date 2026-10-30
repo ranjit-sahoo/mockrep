@@ -102,7 +102,7 @@ body.guided #acct,body.guided .tabs,body.guided .foot .hide-guided,body.guided #
 #guide{display:none}body.guided #guide{display:block}
 .steps{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}.steps span{border:1px solid var(--line);background:var(--card2);border-radius:99px;padding:4px 12px;font-size:var(--fs-xs);color:var(--mute)}.steps b{color:var(--acc)}
 .wl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.wl input{flex:1;min-width:200px}
-@media print{body.pr .wrap,body.pr #wake{display:none!important}body.pr #prArea{display:block;color:#111;background:#fff;font:13.5px/1.5 system-ui,Arial,sans-serif}body.pr #prArea *{visibility:visible;color:#111}
+@media print{body.pr .wrap,body.pr #wake{display:none!important}body.pr #prArea{display:block;visibility:visible;color:#111;background:#fff;font:13.5px/1.5 system-ui,Arial,sans-serif}body.pr #prArea *{visibility:visible;color:#111}
  body.pr #prArea h1{font-size:22px;margin:0 0 4px}body.pr #prArea h2{font-size:15px;margin:16px 0 4px;border-bottom:1.5px solid #333}body.pr #prArea p,body.pr #prArea li{margin:3px 0}body.pr #prArea .q{break-inside:avoid;margin:10px 0}}
 @media(max-width:640px){
  body{font-size:16px}.wrap{padding:16px 12px 70px}.hero{padding-top:12px}.sub{font-size:var(--fs-md)}
@@ -254,6 +254,7 @@ body.guided #acct{display:none}
   <label for="resume">Resume (paste text) or upload PDF, DOCX or TXT</label>
   <textarea id="resume" placeholder="Paste your resume here..."></textarea>
   <input type="file" id="file" accept=".pdf,.docx,.txt" aria-label="Upload resume">
+  <div class="note" id="fileNote">Choosing a file sends it to the MockRep server once to read its text. The file itself is not stored.</div>
   <label for="jd">Job description (optional, needed for JD Match)</label><textarea id="jd" style="min-height:80px"></textarea>
   <label id="cLabel">Country <span class="note" id="detNote">- we detect it from your resume and JD, tap to change</span></label>
   <div class="chips" id="countries" role="group" aria-labelledby="cLabel"><button data-c="US">US</button><button data-c="India">India</button><button data-c="Other">Other</button></div>
@@ -393,10 +394,10 @@ body.guided #acct{display:none}
 <details><summary>Is my voice recorded?</summary><p>Speech is turned into text by your own browser. Audio is never sent to or stored on our server. The playback in your report plays from your own device and disappears when you close the page.</p></details>
 <details><summary>Does it train on my data?</summary><p>No. There are no ads and no trackers.</p></details>
 <details><summary>Is it really free?</summary><p>Yes. There is a daily limit on AI use so the free service stays available. If the limit is reached, the question bank, coding practice and resume builder still work.</p></details></section>
-<div id="prArea"></div>
 </main></div>
 <div class="foot"><p>MockRep web 1.0.5 · Android update 1.0.5 · Online AI tools</p>Powered by NVIDIA Nemotron models on Nebius Token Factory. AI feedback and salary figures are estimates, not guarantees. <br><a href="/about">About</a> &middot; <a href="mailto:ranjitkumarsahoo77@gmail.com">Contact</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy Policy</a> &middot; <a href="/cookies">Cookies</a> &middot; <a href="/delete-account">Delete account</a> &middot; <a href="https://github.com/ranjit-sahoo/mockrep" rel="noopener">Source code</a></div>
 </div>
 <div id="stickyCta"><button id="stickyCtaBtn" type="button">Start a free mock interview</button></div>
 <div id="cookieBar" class="hide" role="dialog" aria-label="Cookie notice"><span>MockRep uses one login cookie only if you sign in. No ads or tracking cookies. <a href="/cookies">Cookie policy</a></span><button id="cookieOk" type="button">Got it</button></div>
+<div id="prArea"></div>
 <script src="/static/app.js" defer></script><script src="/static/hubdata.js" defer></script><script src="/static/hub.js" defer></script><script src="/static/sessions.js" defer></script></body></html>
