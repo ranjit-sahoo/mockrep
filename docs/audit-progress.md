@@ -23,7 +23,7 @@
 20. Terms: public terms existed; separate private draft copy pending.
 21. Trademark: not searched yet; no availability claim.
 22. Data safety: draft exists; final exact-build declaration pending.
-23. Identity trio: source package com.ranjitsahoo.mockrep, versionCode 7. Registered Play identity and actual signed artifact certificate not yet checked for this source.
+23. Identity trio: source package com.ranjitsahoo.mockrep, versionCode 7, versionName 1.0.6 - verified 2026-10-30 consistent across android-twa/app/build.gradle, TWA README, and the LIVE /.well-known/assetlinks.json. Fingerprint 73:D6:AA... is the original 1.0.4 upload key (README matches, added in 5d84c59); D0:A9:9B... is the intentionally kept older Android association (added in c744c4c). Hygiene note: hub.py's assetlinks route is shadowed by main.py's (registration order), so the ASSETLINKS_JSON env var is currently inert - live output is correct regardless. Still strictly user-side: Play Console registered identity + Play app-signing cert check, and a signed-artifact cert check on a real build.
 24. SEO/content: keyword research, 30-day plan, internal-link and Search Console draft pending. No submission.
 25-27. Premium-only: prototype quarantined OFF. Pricing/token binding, subscriptions/lifecycle, reminders, refund page and payment/refund/failure admin tracking are NOT release-ready. No payment enabled.
 
