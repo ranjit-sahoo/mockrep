@@ -21,10 +21,10 @@ Last reviewed: October 30, 2026 (matches /privacy section 3A). Tick these in Pla
 - **Files and docs**: Collected = Yes, Shared = No. Purpose: App functionality. Optional = Yes. (Resume PDF/DOCX uploads and pasted resume/JD text.) Guest uploads deleted within 2 days; saved items deleted with the account.
 
 ### App activity
-- **App interactions**: Collected = Yes, Shared = No. Purpose: App functionality, Analytics. Optional = No for server-side saved scores (only what a signed-in user chooses to save); aggregate visit counts are not tied to any user and cannot identify one. Users can delete saved items.
+- **App interactions**: Collected = Yes, Shared = No. Purpose: App functionality. Optional = No for server-side saved scores (only what a signed-in user chooses to save). Users can delete saved items. (First-party aggregate visit counting exists in code but is disabled in the launch build - no analytics data is collected at all; declare Analytics purpose only if it is ever enabled.)
 
 ### App info and performance
-- Crash logs / Diagnostics: **Not collected** (no crashlytics, no third-party analytics).
+- Crash logs / Diagnostics: **Not collected** (no crashlytics, no third-party analytics; first-party visit counting disabled in the launch build).
 
 ### Location, Health & fitness, Messages, Photos & videos, Audio, Calendar, Contacts, Financial info, Web browsing, Device or other IDs
 - **Not collected**. (Microphone is used on-device for speech-to-text and local playback only; audio never leaves the device, so "Audio" = not collected. No ad ID, no Android ID collection.)
