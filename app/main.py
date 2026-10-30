@@ -46,6 +46,11 @@ if _origins:
     from fastapi.middleware.cors import CORSMiddleware
 
     app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_methods=["GET", "POST"], allow_headers=["*"])
+
+# Compress text responses (HTML/JS/CSS/JSON): app.js alone drops ~91KB to ~25KB.
+from starlette.middleware.gzip import GZipMiddleware  # noqa: E402
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 MAX_UPLOAD = 5 * 1024 * 1024
 LIMITED = [Depends(rate_limit)]
