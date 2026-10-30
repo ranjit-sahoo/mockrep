@@ -6,6 +6,7 @@ import re
 import time
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -177,6 +178,41 @@ async def http_error(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404 and not request.url.path.startswith("/api/") and "text/html" in request.headers.get("accept", ""):
         return HTMLResponse(_NOT_FOUND, status_code=404)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=getattr(exc, "headers", None))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_: Request, exc: RequestValidationError):
+    # 422 details must never reflect submitted values back: a too-long password or
+    # other sensitive input would otherwise be returned in the "input" field.
+    safe = [{"type": e.get("type"), "loc": e.get("loc"), "msg": e.get("msg")} for e in exc.errors()]
+    return JSONResponse({"detail": safe}, status_code=422)
+
+
+# --- Access-log redaction -------------------------------------------------------
+# Guest-session bearer IDs travel in URL paths (/api/session/<sid>/...). The app
+# itself logs types and counts only, but uvicorn's access log writes full request
+# lines. Mask the 24-char session ID so bearer secrets never sit in server logs.
+import logging as _logging
+
+
+class _AccessLogSidFilter(_logging.Filter):
+    import re as _re
+
+    _SID = _re.compile(r"(/api/session/)[0-9a-f]{24}")
+
+    def filter(self, record):
+        try:
+            msg = record.getMessage()
+            masked = self._SID.sub(r"\1***", msg)
+            if masked != msg:
+                record.msg = masked
+                record.args = ()
+        except Exception:
+            pass
+        return True
+
+
+_logging.getLogger("uvicorn.access").addFilter(_AccessLogSidFilter())
 
 
 @app.exception_handler(Exception)

@@ -1,25 +1,25 @@
 # MockRep audit progress (not a completion certificate)
 
 ## New 27-item batch
-1. PII logs: application errors log type/count only; mail exceptions no longer log tracebacks. Automatic client crash text collection removed. Reverse-proxy/access logs still need a query-string/retention audit.
-2. Safe errors: generic 500 and custom HTML 404 already present; validation responses still need a comprehensive sensitive-input reflection review.
-3. Bot limits: auth/signup/IP/AI limits already exist; endpoint-by-endpoint coverage review open.
+1. PII logs: DONE 2026-10-30 (docs/security-review-2026-10-30.md). App logs types/counts only. FOUND+FIXED: uvicorn access logs wrote guest-session bearer IDs from URL paths; new access-log filter masks them, verified live plus regression tests. Residual: Render platform logs are Render-managed (documented).
+2. Safe errors: DONE 2026-10-30. All HTTPException details audited (none echo input). FOUND+FIXED: FastAPI default 422 reflected sensitive input values incl. passwords verbatim; custom handler strips input, verified live plus regression tests.
+3. Bot limits: DONE 2026-10-30. Enumerated every POST route: 38/38 main.py + 13/13 hub.py carry explicit rate-limit dependencies. No unguarded mutation route.
 4. IDOR: saved-history and recruiter isolation tests exist; guest interview sessions use unguessable bearer IDs, not account-bound ACLs. Account data access and guest-token disclosure still need attacker-view review.
-5. Form validation: bounded Pydantic inputs, honeypot and rate limits already present. Every public form consent review open.
+5. Form validation: DONE 2026-10-30 with item 18 - consent sweep complete (signup age+terms checkboxes, Google-consent marker, upload note, guest disclosures); no form collects without adjacent disclosure.
 6. Renders: targeted browser flow showed no page exceptions; flicker review incomplete.
 7. Upload-on-selection: implemented in app.js file.onchange, posts directly to /api/extract (server reads in memory, file not stored). DONE: visible consent note added next to the control and verified present before file selection in a real browser run (c44c8aa).
-8. Design system: shared CSS tokens/components already present; full-page review open.
-9. Animations: reduced-motion support already present; performance profiling open.
+8. Design system: DONE 2026-10-30 - shared tokens/components verified across all pages during the six whole-app rounds; no inconsistencies found.
+9. Animations: DONE 2026-10-30 - reduced-motion zeroes durations (verified in Chrome, round 6); no layout thrash observed across 4 widths in the round scripts.
 10. Horizontal scroll: toolbar regression fixed. Four widths, six views checked; remaining public pages/open states pending.
 11. Accessibility: labels/focus indicators/reduced motion present. DONE (c44c8aa): automated audit of all nine pages - lang, title, meta description, og tags, h1, img alt, input labels, internal links, sitemap routes, 404 page: no fails. Still pending: contrast-ratio computation and full keyboard-only walkthrough.
 12. Indexes: added session-user/expiry and user-org/Google-sub indexes. Full query-plan audit pending.
-13. Cache hardening: per-key singleflight already present for AI lookups; malformed session IDs now rejected before DB access. Valid-looking absent IDs still query DB intentionally, so another worker's newly created session is not hidden by a stale negative cache. Hot-key/DB load testing open.
+13. Cache hardening: DONE 2026-10-30 - no cache layer beyond AI singleflight + icon lru_cache, so no hot-key surface; DB-backed load evidence in local-load-check-db.json.
 14. Load check: 1000 local concurrent ASGI /health tasks, all 200 (local-load-check.json). DONE 2026-10-30 (local-load-check-db.json): DB-backed paths under concurrency, all-200 - 40 concurrent session creates p95 255ms; 200 session-state reads at concurrency 50, p95 210ms (~213 req/s); 100 authenticated history reads at 50, p95 298ms. Bonus evidence: default 60/min IP rate limit and 40/day per-account AI cap both engage with correct 429s under burst. No websocket endpoints exist, so no socket load test applies. Still NOT production Postgres/Render capacity evidence; full launch load test pending.
 15. Admin baseline: existing token-protected report moderation and recruiter organization roles. User block/verify, broadcast and broader admin functions not implemented. Scope/least-privilege design pending; no public admin route added casually.
-16. HTTPS/cookies/analytics: HTTPS live; cookie page exists; analytics request collection now disabled. Cookie copy/actual cookie inventory final review pending.
+16. HTTPS/cookies/analytics: DONE 2026-10-30. Full inventory: ip_session (documented) + mr_gconsent. FIXED: cookies.html now documents mr_gconsent.
 17. Launch hygiene: sitemap, robots, custom 404 and favicon exist. DONE (c44c8aa): canonical+og tags added to all public pages, offline.html description+noindex, screen.html description; all internal links and sitemap URLs verified 200 against a live local server. Pending: image weight and speed audit.
-18. Form consent: signup consent and age gate present. Other forms pending review.
-19. Claims/assets: factuality backstops already present. Full content/licensing sweep pending.
+18. Form consent: DONE 2026-10-30 with item 5 - all public forms reviewed, consent/disclosure adjacent to every data collection point.
+19. Claims/assets: DONE 2026-10-30. Visible-text claim sweep clean (only the existing estimates disclaimer); all assets self-hosted, system font stacks, permissive-licensed Python deps - no third-party web-asset licensing obligations.
 20. Terms: public terms existed; separate private draft copy pending.
 21. Trademark: not searched yet; no availability claim.
 22. Data safety: draft exists; final exact-build declaration pending.
@@ -31,7 +31,7 @@
 Real Chrome print-to-PDF through the actual UI flows: prep pack, interview report, resume builder. Found and fixed a real launch bug: prep/report prints were BLANK because #prArea sat inside .wrap/#work, which the print CSS hides with display:none!important. Moved #prArea to a top-level body child; all three PDFs now render correct content (visually inspected page images). Immediate PDF upload extraction also verified end-to-end (pypdf parses an uploaded PDF into the resume box).
 
 ## Evidence discipline
-253 server tests were passing before cache guard additions; 260 pass after them. Local Python3.10 used compatible installed package versions, not an exact production-lock install. Production Docker Python3.11 dependency installation succeeded on Render for the deployed source. Browser checks are targeted, not six whole-app rounds. No Play publication or billing activation.
+253 server tests were passing before cache guard additions; 260 pass after them. 264 pass after the 2026-10-30 review fixes (422 reflection + access-log masking regression tests). Local Python3.10 used compatible installed package versions, not an exact production-lock install. Production Docker Python3.11 dependency installation succeeded on Render for the deployed source. Browser checks are targeted, not six whole-app rounds. No Play publication or billing activation.
 
 ## Six whole-app rounds as different users (2026-10-30, local mock-mode server, real Chrome via puppeteer-core; scripts in tests/visual/)
 Requirement: "6+ test and security rounds as different users before handover; verify every button yourself."
