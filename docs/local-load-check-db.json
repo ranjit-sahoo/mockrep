@@ -1,0 +1,34 @@
+{
+ "note": "local SQLite, single worker; production is managed Postgres on Render - shape only, not capacity proof",
+ "session_create_40_concurrent": {
+  "n": 40,
+  "p50_ms": 181.0,
+  "p95_ms": 254.8,
+  "max_ms": 263.9,
+  "status_codes": {
+   "200": 40
+  },
+  "wall_s": 0.27
+ },
+ "session_state_200_at_50": {
+  "n": 200,
+  "p50_ms": 123.3,
+  "p95_ms": 210.3,
+  "max_ms": 234.1,
+  "status_codes": {
+   "200": 200
+  },
+  "wall_s": 0.94
+ },
+ "history_100_at_50": {
+  "n": 100,
+  "p50_ms": 187.4,
+  "p95_ms": 298.4,
+  "max_ms": 347.5,
+  "status_codes": {
+   "200": 100
+  },
+  "wall_s": 0.58
+ },
+ "websockets": "none - app has no websocket endpoints; nothing to load-test"
+}
